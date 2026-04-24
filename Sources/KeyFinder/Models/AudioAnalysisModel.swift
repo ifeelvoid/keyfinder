@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import AVFoundation
 import UniformTypeIdentifiers
+import KeyFinderEngine
 
 // MARK: - DJ Presets
 

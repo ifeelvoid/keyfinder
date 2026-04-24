@@ -3,51 +3,70 @@ import AVFoundation
 
 // MARK: - Streaming Audio Processor
 /// Memory-efficient audio processor that handles large files without loading everything into memory
-class AudioProcessor {
+public class AudioProcessor {
     private let keyDetector = KeyDetector()
     private let bpmDetector = BPMDetector()
     private let beatGridDetector = BeatGridDetector()
 
-    enum EnergyLevel: String {
+    public enum EnergyLevel: String {
         case low = "Low"
         case medium = "Medium"
         case high = "High"
         case veryHigh = "Very High"
     }
 
-    struct AnalysisResult {
-        let key: KeyDetector.MusicalKey
-        let bpm: Double
-        let fileName: String
-        let confidence: Double
-        let keyChanges: [(TimeInterval, KeyDetector.MusicalKey, Double)]
-        let duration: TimeInterval
-        let energy: EnergyLevel
-        let beatGrid: BeatGridDetector.BeatGrid?
+    public struct AnalysisResult {
+        public let key: KeyDetector.MusicalKey
+        public let bpm: Double
+        public let fileName: String
+        public let confidence: Double
+        public let keyChanges: [(TimeInterval, KeyDetector.MusicalKey, Double)]
+        public let duration: TimeInterval
+        public let energy: EnergyLevel
+        public let beatGrid: BeatGridDetector.BeatGrid?
+
+        public init(key: KeyDetector.MusicalKey, bpm: Double, fileName: String, confidence: Double, keyChanges: [(TimeInterval, KeyDetector.MusicalKey, Double)], duration: TimeInterval, energy: EnergyLevel, beatGrid: BeatGridDetector.BeatGrid?) {
+            self.key = key
+            self.bpm = bpm
+            self.fileName = fileName
+            self.confidence = confidence
+            self.keyChanges = keyChanges
+            self.duration = duration
+            self.energy = energy
+            self.beatGrid = beatGrid
+        }
     }
 
     // MARK: - Streaming Analysis Configuration
-    struct StreamingConfig {
-        let chunkDuration: TimeInterval // Duration of each audio chunk in seconds
-        let overlap: TimeInterval // Overlap between chunks for smooth analysis
-        let maxMemoryMB: Int // Maximum memory to use
+    public struct StreamingConfig {
+        public let chunkDuration: TimeInterval // Duration of each audio chunk in seconds
+        public let overlap: TimeInterval // Overlap between chunks for smooth analysis
+        public let maxMemoryMB: Int // Maximum memory to use
 
-        static let `default` = StreamingConfig(
+        public static let `default` = StreamingConfig(
             chunkDuration: 30.0,
             overlap: 5.0,
             maxMemoryMB: 512
         )
 
-        static let lowMemory = StreamingConfig(
+        public static let lowMemory = StreamingConfig(
             chunkDuration: 15.0,
             overlap: 2.0,
             maxMemoryMB: 256
         )
+
+        public init(chunkDuration: TimeInterval, overlap: TimeInterval, maxMemoryMB: Int) {
+            self.chunkDuration = chunkDuration
+            self.overlap = overlap
+            self.maxMemoryMB = maxMemoryMB
+        }
     }
 
     private var streamingConfig: StreamingConfig = .default
 
-    func analyzeAudioFile(at url: URL) async throws -> AnalysisResult {
+    public init() {}
+
+    public func analyzeAudioFile(at url: URL) async throws -> AnalysisResult {
         // Load audio file
         let audioFile = try AVAudioFile(forReading: url)
         let format = audioFile.processingFormat
@@ -97,7 +116,7 @@ class AudioProcessor {
     }
 
     /// Analyze only beatgrid (for faster updates when BPM is already known)
-    func analyzeBeatGrid(audioSamples: [Float], sampleRate: Double, existingBPM: Double? = nil) async throws -> BeatGridDetector.BeatGrid {
+    public func analyzeBeatGrid(audioSamples: [Float], sampleRate: Double, existingBPM: Double? = nil) async throws -> BeatGridDetector.BeatGrid {
         let result = try await beatGridDetector.detectBeatGrid(
             audioSamples: audioSamples,
             sampleRate: sampleRate,
@@ -107,13 +126,13 @@ class AudioProcessor {
     }
 
     /// Configure streaming mode for large file handling
-    func setStreamingMode(config: StreamingConfig) {
+    public func setStreamingMode(config: StreamingConfig) {
         self.streamingConfig = config
     }
 
     /// Analyze audio file using streaming mode for very large files (>10 minutes)
     /// This processes audio in chunks to minimize memory usage
-    func analyzeAudioFileStreaming(at url: URL) async throws -> AnalysisResult {
+    public func analyzeAudioFileStreaming(at url: URL) async throws -> AnalysisResult {
         let audioFile = try AVAudioFile(forReading: url)
         let format = audioFile.processingFormat
         let sampleRate = format.sampleRate
@@ -168,7 +187,7 @@ class AudioProcessor {
     private func extractDownsampledMono(from audioFile: AVAudioFile, totalFrames: AVAudioFrameCount) throws -> [Float] {
         let format = audioFile.processingFormat
         let chunkSize: AVAudioFrameCount = 44100 // 1 second chunks
-        let skipFrames: AVAudioFrameCount = 88200 // Skip 2 seconds between samples
+        let skipFrames: AVAudioFrameCount = 88200 // Skip 2 seconds between sample
 
         var allSamples: [Float] = []
         allSamples.reserveCapacity(Int(totalFrames / 3)) // Approximate size
@@ -298,5 +317,20 @@ class AudioProcessor {
         }
 
         return magnitudes
+    }
+}
+
+// MARK: - Performance Utils
+struct PerformanceUtils {
+    static func estimateMemoryUsage(sampleCount: Int, fftSize: Int) -> Int64 {
+        // Rough estimate: each sample is 4 bytes (Float32)
+        // FFT uses ~3x the fftSize in working memory
+        let sampleMemory = Int64(sampleCount) * 4
+        let fftMemory = Int64(fftSize) * 4 * 3
+        return sampleMemory + fftMemory
+    }
+
+    static func recommendedFFTSize() -> Int {
+        return 32768
     }
 }

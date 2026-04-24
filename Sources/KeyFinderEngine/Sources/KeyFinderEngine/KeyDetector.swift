@@ -3,101 +3,12 @@ import Accelerate
 import AVFoundation
 import os.log
 
-// MARK: - Performance Optimized FFT Manager
-/// Singleton FFT setup for reuse - avoid recreating FFT plans on every call
-/// This provides significant performance improvement for repeated FFT operations
-final class FFTManager {
-    static let shared = FFTManager()
-
-    private var fftSetup4096: FFTSetup?
-    private var fftSetup8192: FFTSetup?
-    private var fftSetup16384: FFTSetup?
-    private var fftSetup32768: FFTSetup?
-
-    private let log2n_4096 = vDSP_Length(log2(Double(4096)))
-    private let log2n_8192 = vDSP_Length(log2(Double(8192)))
-    private let log2n_16384 = vDSP_Length(log2(Double(16384)))
-    private let log2n_32768 = vDSP_Length(log2(Double(32768)))
-
-    private init() {
-        // Pre-create FFT setups for common sizes - these are thread-safe to reuse
-        fftSetup4096 = vDSP_create_fftsetup(log2n_4096, Int32(kFFTRadix2))
-        fftSetup8192 = vDSP_create_fftsetup(log2n_8192, Int32(kFFTRadix2))
-        fftSetup16384 = vDSP_create_fftsetup(log2n_16384, Int32(kFFTRadix2))
-        fftSetup32768 = vDSP_create_fftsetup(log2n_32768, Int32(kFFTRadix2))
-    }
-
-    deinit {
-        if let setup = fftSetup4096 { vDSP_destroy_fftsetup(setup) }
-        if let setup = fftSetup8192 { vDSP_destroy_fftsetup(setup) }
-        if let setup = fftSetup16384 { vDSP_destroy_fftsetup(setup) }
-        if let setup = fftSetup32768 { vDSP_destroy_fftsetup(setup) }
-    }
-
-    func getFFTSize(for size: Int) -> FFTSetup? {
-        switch size {
-        case 4096: return fftSetup4096
-        case 8192: return fftSetup8192
-        case 16384: return fftSetup16384
-        case 32768: return fftSetup32768
-        default: return nil
-        }
-    }
-
-    func getLog2n(for size: Int) -> vDSP_Length? {
-        switch size {
-        case 4096: return log2n_4096
-        case 8192: return log2n_8192
-        case 16384: return log2n_16384
-        case 32768: return log2n_32768
-        default: return nil
-        }
-    }
-}
-
-// MARK: - Pre-computed Window Functions
-/// Pre-computed Hann window for common FFT sizes - avoids recalculating on every frame
-final class WindowCache {
-    static let shared = WindowCache()
-
-    private var hannWindows: [Int: [Float]] = [:]
-    private var hammingWindows: [Int: [Float]] = [:]
-
-    private init() {
-        // Pre-compute windows for common sizes
-        for size in [4096, 8192, 16384, 32768] {
-            hannWindows[size] = computeHannWindow(size: size)
-            hammingWindows[size] = computeHammingWindow(size: size)
-        }
-    }
-
-    private func computeHannWindow(size: Int) -> [Float] {
-        var window = [Float](repeating: 0, count: size)
-        vDSP_hann_window(&window, vDSP_Length(size), Int32(vDSP_HANN_NORM))
-        return window
-    }
-
-    private func computeHammingWindow(size: Int) -> [Float] {
-        var window = [Float](repeating: 0, count: size)
-        vDSP_hamm_window(&window, vDSP_Length(size), 0)
-        return window
-    }
-
-    func getHannWindow(size: Int) -> [Float]? {
-        return hannWindows[size]
-    }
-
-    func getHammingWindow(size: Int) -> [Float]? {
-        return hammingWindows[size]
-    }
-}
-
-class KeyDetector {
+public class KeyDetector {
     // Krumhansl-Schmuckler key profiles (cognitive weights)
     private static let majorProfile: [Double] = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
     private static let minorProfile: [Double] = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
 
-    enum MusicalKey: String {
+    public enum MusicalKey: String {
         case cMajor = "C Major", cSharpMajor = "C# Major", dMajor = "D Major"
         case dSharpMajor = "D# Major", eMajor = "E Major", fMajor = "F Major"
         case fSharpMajor = "F# Major", gMajor = "G Major", gSharpMajor = "G# Major"
@@ -107,7 +18,7 @@ class KeyDetector {
         case fSharpMinor = "F# Minor", gMinor = "G Minor", gSharpMinor = "G# Minor"
         case aMinor = "A Minor", aSharpMinor = "A# Minor", bMinor = "B Minor"
 
-        var camelotNotation: String {
+        public var camelotNotation: String {
             switch self {
             case .cMajor: return "8B"
             case .cSharpMajor: return "3B"
@@ -136,7 +47,7 @@ class KeyDetector {
             }
         }
 
-        var shortName: String {
+        public var shortName: String {
             switch self {
             case .cMajor: return "C"
             case .cSharpMajor: return "C#"
@@ -166,18 +77,18 @@ class KeyDetector {
         }
     }
 
-    func detectKey(audioSamples: [Float], sampleRate: Double) async throws -> MusicalKey {
+    public func detectKey(audioSamples: [Float], sampleRate: Double) async throws -> MusicalKey {
         let (key, _) = try await detectKeyWithConfidence(audioSamples: audioSamples, sampleRate: sampleRate)
         return key
     }
 
-    func detectKeyWithConfidence(audioSamples: [Float], sampleRate: Double) async throws -> (MusicalKey, Double) {
+    public func detectKeyWithConfidence(audioSamples: [Float], sampleRate: Double) async throws -> (MusicalKey, Double) {
         let (key, confidence, _) = try await detectKeyWithChanges(audioSamples: audioSamples, sampleRate: sampleRate)
         return (key, confidence)
     }
 
     // NEW: Detect key with key change information
-    func detectKeyWithChanges(audioSamples: [Float], sampleRate: Double) async throws -> (MusicalKey, Double, [(TimeInterval, MusicalKey, Double)]) {
+    public func detectKeyWithChanges(audioSamples: [Float], sampleRate: Double) async throws -> (MusicalKey, Double, [(TimeInterval, MusicalKey, Double)]) {
         // Use 5 segments for more robust analysis (increased from 3)
         let segmentLength = min(audioSamples.count, Int(sampleRate * 30)) // Max 30 seconds per segment
         let numSegments = 5

@@ -3,40 +3,47 @@ import Accelerate
 
 /// BeatGridDetector - Detects beat positions, phase, and downbeats for DJ use
 /// Uses spectral flux for onset detection and autocorrelation for beat tracking
-class BeatGridDetector {
+public class BeatGridDetector {
 
     // MARK: - Types
 
-    enum TimeSignature: Int, CaseIterable {
+    public enum TimeSignature: Int, CaseIterable {
         case fourFour = 4   // 4/4 - most common in electronic/dance
         case threeFour = 3  // 3/4 - waltz time
         case sixEight = 6   // 6/8 - compound duple
 
-        var beatsPerBar: Int {
+        public var beatsPerBar: Int {
             return self.rawValue
         }
     }
 
-    struct Beat {
-        let time: TimeInterval      // Position in seconds
-        let strength: Float          // Beat strength (0-1)
-        let isDownbeat: Bool         // Is this beat 1 of the bar?
-        let beatNumber: Int          // 1, 2, 3, or 4 (within the bar)
+    public struct Beat {
+        public let time: TimeInterval      // Position in seconds
+        public let strength: Float          // Beat strength (0-1)
+        public let isDownbeat: Bool         // Is this beat 1 of the bar?
+        public let beatNumber: Int          // 1, 2, 3, or 4 (within the bar)
+
+        public init(time: TimeInterval, strength: Float, isDownbeat: Bool, beatNumber: Int) {
+            self.time = time
+            self.strength = strength
+            self.isDownbeat = isDownbeat
+            self.beatNumber = beatNumber
+        }
     }
 
-    struct BeatGrid {
-        let beats: [Beat]            // All detected beats
-        let bpm: Double              // Tempo in beats per minute
-        let timeSignature: TimeSignature
-        let firstDownbeatTime: TimeInterval  // Position of first downbeat
-        let phase: Double            // Current phase (0.0 - 1.0) relative to downbeat
+    public struct BeatGrid {
+        public let beats: [Beat]            // All detected beats
+        public let bpm: Double              // Tempo in beats per minute
+        public let timeSignature: TimeSignature
+        public let firstDownbeatTime: TimeInterval  // Position of first downbeat
+        public let phase: Double            // Current phase (0.0 - 1.0) relative to downbeat
 
-        var beatsPerBar: Int {
+        public var beatsPerBar: Int {
             return timeSignature.beatsPerBar
         }
 
         /// Get the current beat number (1-4) at a given time position
-        func beatNumber(at time: TimeInterval) -> Int {
+        public func beatNumber(at time: TimeInterval) -> Int {
             guard !beats.isEmpty else { return 1 }
 
             // Find the most recent beat before or at the given time
@@ -49,7 +56,7 @@ class BeatGridDetector {
         }
 
         /// Get the current phase (0.0-1.0) at a given time position
-        func phase(at time: TimeInterval) -> Double {
+        public func phase(at time: TimeInterval) -> Double {
             guard !beats.isEmpty, let firstDownbeat = beats.first(where: { $0.isDownbeat }) else {
                 return 0.0
             }
@@ -62,7 +69,7 @@ class BeatGridDetector {
         }
 
         /// Get the time until the next downbeat
-        func timeToNextDownbeat(from time: TimeInterval) -> TimeInterval {
+        public func timeToNextDownbeat(from time: TimeInterval) -> TimeInterval {
             let barDuration = (60.0 / bpm) * Double(beatsPerBar)
             let timeSinceFirstDownbeat = time - firstDownbeatTime
             let barsSinceDownbeat = timeSinceFirstDownbeat / barDuration
@@ -74,10 +81,16 @@ class BeatGridDetector {
         }
     }
 
-    struct AnalysisOutput {
-        let beatGrid: BeatGrid
-        let onsetStrength: [Float]       // For visualization
-        let onsetTimes: [TimeInterval]    // When onsets occur
+    public struct AnalysisOutput {
+        public let beatGrid: BeatGrid
+        public let onsetStrength: [Float]       // For visualization
+        public let onsetTimes: [TimeInterval]    // When onsets occur
+
+        public init(beatGrid: BeatGrid, onsetStrength: [Float], onsetTimes: [TimeInterval]) {
+            self.beatGrid = beatGrid
+            self.onsetStrength = onsetStrength
+            self.onsetTimes = onsetTimes
+        }
     }
 
     // MARK: - Configuration
@@ -90,7 +103,7 @@ class BeatGridDetector {
     // MARK: - Public API
 
     /// Detect the complete beat grid for an audio file
-    func detectBeatGrid(audioSamples: [Float], sampleRate: Double, detectedBPM: Double? = nil) async throws -> AnalysisOutput {
+    public func detectBeatGrid(audioSamples: [Float], sampleRate: Double, detectedBPM: Double? = nil) async throws -> AnalysisOutput {
         // Step 1: Calculate onset strength using spectral flux
         let onsetStrength = calculateOnsetStrength(samples: audioSamples, sampleRate: sampleRate)
 
@@ -131,12 +144,12 @@ class BeatGridDetector {
     }
 
     /// Get phase at a specific time position
-    func getPhase(at time: TimeInterval, beatGrid: BeatGrid) -> Double {
+    public func getPhase(at time: TimeInterval, beatGrid: BeatGrid) -> Double {
         return beatGrid.phase(at: time)
     }
 
     /// Get beat number (1-4) at a specific time position
-    func getBeatNumber(at time: TimeInterval, beatGrid: BeatGrid) -> Int {
+    public func getBeatNumber(at time: TimeInterval, beatGrid: BeatGrid) -> Int {
         return beatGrid.beatNumber(at: time)
     }
 

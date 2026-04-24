@@ -11,11 +11,13 @@ let package = Package(
             name: "KeyFinder",
             targets: ["KeyFinder"])
     ],
-    dependencies: [],
+    dependencies: [
+        .package(name: "KeyFinderEngine", path: "./Sources/KeyFinderEngine")
+    ],
     targets: [
         .executableTarget(
             name: "KeyFinder",
-            dependencies: [],
+            dependencies: [.product(name: "KeyFinderEngine", package: "KeyFinderEngine")],
             resources: [.process("Resources")]
         )
     ]
