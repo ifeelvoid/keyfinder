@@ -3,6 +3,8 @@ import Accelerate
 import AVFoundation
 
 public class BPMDetector {
+    public init() {}
+
     public func detectBPM(audioSamples: [Float], sampleRate: Double) async throws -> Double {
         // Apply onset detection
         let onsetStrength = await calculateOnsetStrength(samples: audioSamples, sampleRate: sampleRate)

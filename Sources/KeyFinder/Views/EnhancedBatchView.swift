@@ -4,7 +4,10 @@ import UniformTypeIdentifiers
 
 struct EnhancedBatchView: View {
     @StateObject private var model = AudioAnalysisModel()
+    @StateObject private var liveCapture = LiveAudioCapture()
     @EnvironmentObject var themeManager: ThemeManager
+    @AppStorage("lastMode") private var lastMode: String = "live"
+    @State private var selectedMode: String = "live"
     @State private var isDragOver = false
     @State private var showHelp = false
     @State private var showCamelotWheel = false
@@ -21,18 +24,29 @@ struct EnhancedBatchView: View {
             themeManager.backgroundColor.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Header with search and export
-                headerView
+                // Tab bar
+                tabBar
 
-                if model.tracks.isEmpty {
-                    dropZoneView
+                // Content based on selected mode
+                if selectedMode == "live" {
+                    LiveInputView(capture: liveCapture)
                 } else {
+                    // File mode content
                     VStack(spacing: 0) {
-                        // Search and filter bar
-                        searchFilterBar
+                        // Header with search and export
+                        headerView
 
-                        // Track list
-                        trackListView
+                        if model.tracks.isEmpty {
+                            dropZoneView
+                        } else {
+                            VStack(spacing: 0) {
+                                // Search and filter bar
+                                searchFilterBar
+
+                                // Track list
+                                trackListView
+                            }
+                        }
                     }
                 }
             }
@@ -55,7 +69,20 @@ struct EnhancedBatchView: View {
             handleDrop(providers: providers)
         }
         .onAppear {
+            selectedMode = lastMode
             setupNotificationObservers()
+            // Auto-start live capture on first launch
+            if selectedMode == "live" && !liveCapture.isCapturing {
+                liveCapture.startCapture()
+            }
+        }
+        .onChange(of: selectedMode) { newValue in
+            lastMode = newValue
+            if newValue == "live" && !liveCapture.isCapturing {
+                liveCapture.startCapture()
+            } else if newValue == "file" {
+                liveCapture.stopCapture()
+            }
         }
         .sheet(isPresented: $showHelp) {
             HelpView()
@@ -307,6 +334,52 @@ struct EnhancedBatchView: View {
         .padding(.bottom, 10)
     }
 
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            // LIVE tab
+            Button(action: {
+                selectedMode = "live"
+            }) {
+                Text("LIVE")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundColor(selectedMode == "live" ? .white : themeManager.tertiaryTextColor)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(
+                        selectedMode == "live" ?
+                        themeManager.accentColorSubtle :
+                        Color.clear
+                    )
+                    .cornerRadius(4)
+            }
+            .buttonStyle(.plain)
+
+            // FILE tab
+            Button(action: {
+                selectedMode = "file"
+            }) {
+                Text("FILE")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundColor(selectedMode == "file" ? .white : themeManager.tertiaryTextColor)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(
+                        selectedMode == "file" ?
+                        themeManager.accentColorSubtle :
+                        Color.clear
+                    )
+                    .cornerRadius(4)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+        }
+        .padding(.horizontal, 30)
+        .padding(.top, 15)
+        .padding(.bottom, 5)
+        .background(themeManager.backgroundColor)
+    }
+
     private var searchFilterBar: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
@@ -458,28 +531,33 @@ struct EnhancedBatchView: View {
             }
 
             if let selected = model.selectedTrack {
-                harmonicMixingBar(selected: selected)
+                selectedTrackDetailPanel(selected: selected)
             }
         }
     }
 
-    private func harmonicMixingBar(selected: TrackAnalysis) -> some View {
-        HStack {
-            Image(systemName: "waveform")
-                .foregroundColor(themeManager.accentColor)
-            Text("Showing compatible tracks for \(selected.key ?? "") (\(selected.camelotNotation ?? ""))")
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(themeManager.textColor)
-            Spacer()
-            Button(action: { model.clearSelection() }) {
-                Image(systemName: "xmark.circle")
+    private func selectedTrackDetailPanel(selected: TrackAnalysis) -> some View {
+        VStack(spacing: 0) {
+            // Header with close button
+            HStack {
+                Text("SELECTED TRACK")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundColor(themeManager.tertiaryTextColor)
+                Spacer()
+                Button(action: { model.clearSelection() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(themeManager.tertiaryTextColor)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(themeManager.surfaceColor.opacity(0.8))
+
+            // Track detail view
+            TrackDetailView(track: selected)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(themeManager.accentColorSubtle.opacity(0.5))
     }
 
     private var dropZoneView: some View {
