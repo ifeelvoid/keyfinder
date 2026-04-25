@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <thread>
 
 KeyFinderAudioProcessor::KeyFinderAudioProcessor()
      : AudioProcessor (BusesProperties()
@@ -157,4 +158,111 @@ void KeyFinderAudioProcessor::setStateInformation (const void* data, int sizeInB
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new KeyFinderAudioProcessor();
+}
+
+void KeyFinderAudioProcessor::loadAndAnalyzeFile(const juce::File& file)
+{
+    if (fileAnalyzing)
+        return;
+
+    loadedFilePath = file.getFullPathName();
+    fileAnalyzing = true;
+    analysisComplete = false;
+
+    // Load file asynchronously
+    std::thread([this, file]()
+    {
+        juce::AudioFormatManager formatManager;
+        formatManager.registerBasicFormats();
+
+        std::unique_ptr<juce::AudioFormatReader> reader(formatManager.createReaderFor(file));
+
+        if (reader != nullptr)
+        {
+            // Read audio samples
+            juce::AudioBuffer<float> buffer(static_cast<int>(reader->numChannels),
+                                            static_cast<int>(reader->lengthInSamples));
+            reader->read(&buffer, 0, static_cast<int>(reader->lengthInSamples), 0, true, true);
+
+            // Mix to mono
+            std::vector<float> samples(buffer.getNumSamples());
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            {
+                float sum = 0.0f;
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                    sum += buffer.getSample(ch, i);
+                samples[i] = sum / buffer.getNumChannels();
+            }
+
+            // Detect key
+            auto keyResult = keyDetector->detectKey(samples, reader->sampleRate);
+            detectedKey = keyResult.shortName;
+            camelotNotation = keyResult.camelot;
+
+            // Detect BPM
+            detectedBPM = bpmDetector->detectBPM(samples, reader->sampleRate);
+
+            analysisComplete = true;
+        }
+
+        fileAnalyzing = false;
+    }).detach();
+}
+
+void KeyFinderAudioProcessor::exportToRekordboxXML(const juce::File& file)
+{
+    if (!analysisComplete)
+        return;
+
+    juce::XmlElement xml("DJ_PLAYLISTS");
+    xml.setAttribute("Version", "1.0.0");
+
+    juce::XmlElement* collection = xml.createNewChildElement("COLLECTION");
+    collection->setAttribute("Entries", "1");
+
+    juce::XmlElement* track = collection->createNewChildElement("TRACK");
+    track->setAttribute("TrackID", "1");
+    track->setAttribute("Name", loadedFilePath.isEmpty() ? "Unknown" : loadedFilePath);
+    track->setAttribute("Key", detectedKey.toRawUTF8());
+    track->setAttribute("BPM", juce::String(detectedBPM, 1).toRawUTF8());
+
+    xml.writeToFile(file, "Rekordbox XML Export");
+}
+
+void KeyFinderAudioProcessor::exportToSeratoCSV(const juce::File& file)
+{
+    if (!analysisComplete)
+        return;
+
+    juce::String content = "Title,Key,BPM\n";
+    content += loadedFilePath.isEmpty() ? "Unknown" : loadedFilePath;
+    content += ",";
+    content += detectedKey;
+    content += ",";
+    content += juce::String(detectedBPM, 1);
+    content += "\n";
+
+    file.replaceWithText(content);
+}
+
+void KeyFinderAudioProcessor::exportToTraktorNML(const juce::File& file)
+{
+    if (!analysisComplete)
+        return;
+
+    juce::XmlElement xml("NML");
+    xml.setAttribute("Version", "1.0.0");
+
+    juce::XmlElement* collection = xml.createNewChildElement("COLLECTION");
+    collection->setAttribute("_entries", "1");
+
+    juce::XmlElement* track = collection->createNewChildElement("ENTRY");
+    juce::XmlElement* location = track->createNewChildElement("LOCATION");
+    location->setAttribute("FILE", loadedFilePath.isEmpty() ? "Unknown" : loadedFilePath.toRawUTF8());
+
+    juce::XmlElement* info = track->createNewChildElement("INFO");
+    info->setAttribute("KEY", detectedKey.toRawUTF8());
+    info->setAttribute("BPM", juce::String(detectedBPM, 1).toRawUTF8());
+
+    xml.writeToFile(file, "Traktor NML Export");
 }

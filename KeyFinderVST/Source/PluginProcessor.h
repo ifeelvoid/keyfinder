@@ -40,10 +40,21 @@ public:
     void startAnalysis();
     bool isAnalyzing() const { return analyzing; }
     bool hasResults() const { return analysisComplete; }
+    bool isFileLoaded() const { return !loadedFilePath.isEmpty(); }
+    juce::String getLoadedFilePath() const { return loadedFilePath; }
 
     juce::String getDetectedKey() const { return detectedKey; }
     juce::String getCamelotNotation() const { return camelotNotation; }
     double getDetectedBPM() const { return detectedBPM; }
+
+    // File analysis
+    void loadAndAnalyzeFile(const juce::File& file);
+    bool isFileAnalyzing() const { return fileAnalyzing; }
+
+    // Export methods
+    void exportToRekordboxXML(const juce::File& file);
+    void exportToSeratoCSV(const juce::File& file);
+    void exportToTraktorNML(const juce::File& file);
 
 private:
     std::unique_ptr<KeyDetector> keyDetector;
@@ -52,6 +63,9 @@ private:
     std::vector<float> audioBuffer;
     std::atomic<bool> analyzing{false};
     std::atomic<bool> analysisComplete{false};
+    std::atomic<bool> fileAnalyzing{false};
+
+    juce::String loadedFilePath;
 
     juce::String detectedKey;
     juce::String camelotNotation;
