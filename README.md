@@ -1,23 +1,74 @@
-# Key Finder
+# Key Finder 2.0
 
-A professional macOS app and VST plugin for detecting musical key, Camelot notation, and BPM from audio files.
+A professional macOS app and VST/AU plugin for detecting musical key, Camelot notation, and BPM from audio files — with **live audio input** for real-time analysis from any source (Spotify, YouTube, Ableton, etc.).
+
+## Screenshots
+
+### Live Input Mode
+Real-time key and BPM detection from system audio. Just play music from any app.
+
+```
+┌─────────────────────────────────────────────────┐
+│  [LIVE]  [FILE]                                │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│                     C Minor                     │
+│                                                 │
+│                     124.0                        │
+│                     BPM                         │
+│                                                 │
+│                    ● Listening                 │
+└─────────────────────────────────────────────────┘
+```
+
+### File Analysis Mode
+Drop audio files and view detailed results with album art and waveform overview.
+
+```
+┌─────────────────────────────────────────────────┐
+│  ART  │  TRACK    │ KEY  │ CAMELOT │ BPM │ DUR  │
+├───────┼───────────┼──────┼─────────┼─────┼──────┤
+│  [🖼] │ Track.mp3 │ Cm   │ 8A      │124.0│ 6:54 │
+└─────────────────────────────────────────────────┘
+```
+
+### VST Plugin — Tabbed Interface
+Live analysis, file loading, and export — directly in your DAW.
+
+```
+┌─────────────────────────────────────────────────┐
+│  [LIVE]  [FILE]  [EXPORT]                      │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│                     C Minor                     │
+│                                                 │
+│                   8A | 124.0                     │
+│                                                 │
+│              [ ANALYZE ]                       │
+└─────────────────────────────────────────────────┘
+```
 
 ## Features
 
 ### Desktop App
+- **Live Audio Input**: Analyze key/BPM from any source playing on your Mac (Spotify, YouTube, Ableton, etc.) — no file export needed
 - **Batch Processing**: Analyze multiple files at once
 - **Album Art Display**: Shows embedded artwork from audio files
+- **Waveform Overview**: Visual representation of audio content
 - **Enhanced Accuracy**: 16K FFT with harmonic weighting (~90-95% accuracy)
 - **Camelot Wheel**: Perfect for harmonic mixing
+- **Prominent Key Display**: Large, readable key notation at all times
 - **Professional Algorithms**: Krumhansl-Schmuckler key detection
-- **Minimal Black & White UI**: Clean, distraction-free interface
+- **Minimal Dark UI**: Clean, distraction-free interface with monospace fonts
 - **Multiple Formats**: MP3, WAV, M4A, FLAC, AIFF
+- **Export to DJ Software**: Rekordbox XML, Serato CSV, Traktor NML, Engine DJ, Virtual DJ, iTunes XML
 
-### VST Plugin (JUCE)
-- **Live Analysis**: Real-time key/BPM detection in your DAW
+### VST/AU Plugin
+- **Live Analysis**: Real-time key/BPM detection in your DAW (Ableton, Logic, FL Studio, etc.)
+- **Tabbed Interface**: LIVE, FILE, and EXPORT modes in one plugin
 - **Same Accuracy**: Uses identical algorithms as desktop app
-- **Works Everywhere**: Ableton, Logic, FL Studio, etc.
 - **Pass-Through**: Doesn't affect audio, only analyzes
+- **Background Thread Processing**: Analysis runs off the audio thread to prevent glitches
 
 ## Build Instructions
 
@@ -95,32 +146,51 @@ Implements onset-based tempo detection:
 
 ## Architecture
 
-### Desktop App
+### Shared Engine: KeyFinderEngine
+The audio analysis engine is extracted into a reusable Swift Package used by both the standalone app and the VST/AU plugin.
+
 ```
-KeyFinder/
-├── AudioAnalysis/
-│   ├── KeyDetector.swift          # Enhanced key detection (16K FFT)
-│   ├── BPMDetector.swift          # BPM detection algorithm
-│   ├── AudioProcessor.swift       # Audio file processing
-│   └── AlbumArtExtractor.swift    # Metadata extraction
-├── Models/
-│   ├── AudioAnalysisModel.swift   # Batch processing logic
-│   └── TrackAnalysis.swift        # Track data model
-├── Views/
-│   └── BatchContentView.swift     # Table view with album art
-└── KeyFinderApp.swift             # App entry point
+KeyFinderEngine/              # Shared Swift Package
+├── Sources/KeyFinderEngine/
+│   ├── KeyDetector.swift     # Krumhansl-Schmuckler key detection (16K FFT)
+│   ├── BPMDetector.swift      # Onset-based tempo detection
+│   ├── BeatGridDetector.swift # Beat positions, phase, downbeats
+│   ├── AudioProcessor.swift    # Orchestrates full analysis
+│   ├── FFTManager.swift       # Reusable FFT plan singleton
+│   └── WindowCache.swift      # Pre-computed Hann/Hamming windows
 ```
 
-### VST Plugin
+### Desktop App
+```
+Sources/KeyFinder/
+├── AudioAnalysis/             # ← Moved to KeyFinderEngine
+├── Views/
+│   ├── EnhancedBatchView.swift    # LIVE/FILE tabbed main view
+│   ├── LiveInputView.swift        # Live key/BPM meters
+│   ├── TrackDetailView.swift      # Album art + prominent key display
+│   └── MiniWaveformView.swift     # Waveform overview
+├── Models/
+│   └── AudioAnalysisModel.swift   # Batch processing + @AppStorage persistence
+└── KeyFinderApp.swift             # App entry point, commands, mode persistence
+```
+
+### VST/AU Plugin (JUCE)
 ```
 KeyFinderVST/
 ├── Source/
-│   ├── PluginProcessor.h/cpp      # Audio processing & buffering
-│   ├── PluginEditor.h/cpp         # Minimal black & white UI
-│   ├── KeyDetector.h/cpp          # C++ port of key detection
-│   └── BPMDetector.h/cpp          # C++ port of BPM detection
-└── KeyFinderVST.jucer             # JUCE project file
+│   ├── PluginProcessor.h/cpp     # Audio buffering + async analysis
+│   ├── PluginEditor.h/cpp         # Tabbed UI (LIVE/FILE/EXPORT)
+│   ├── KeyDetector.h/cpp           # C++ key detection
+│   └── BPMDetector.h/cpp          # C++ BPM detection
+└── KeyFinderVST.jucer              # JUCE project file (open in Projucer)
 ```
+
+### Building the VST Plugin
+1. Open `KeyFinderVST.jucer` in **Projucer** (part of JUCE)
+2. Click **Xcode** export format
+3. Click **Generate Project**
+4. Open the generated `.xcodeproj` in Xcode
+5. Build for MacOSX (VST3) or AU target
 
 ## Troubleshooting: OCLP & Unsupported macOS Hardware
 
