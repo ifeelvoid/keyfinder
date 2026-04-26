@@ -5,6 +5,7 @@ KeyFinderAudioProcessorEditor::KeyFinderAudioProcessorEditor (KeyFinderAudioProc
     : AudioProcessorEditor (&p), audioProcessor (p)
 {
     setSize (400, 520);
+    setWantsKeyboardFocus (false);
 
     // Tab buttons
     liveTabBtn.setButtonText ("LIVE");
@@ -51,13 +52,7 @@ KeyFinderAudioProcessorEditor::KeyFinderAudioProcessorEditor (KeyFinderAudioProc
     setupLabel (camelotLabel, "--");
     setupLabel (bpmLabel, "--");
 
-    // FILE tab controls
-    loadFileButton.setButtonText ("LOAD FILE");
-    loadFileButton.onClick = [this] { loadFile(); };
-    loadFileButton.setColour (juce::TextButton::buttonColourId, juce::Colours::black);
-    loadFileButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
-    addAndMakeVisible (loadFileButton);
-
+    // FILE tab controls - drop zone for files
     filePathLabel.setFont (juce::Font ("Courier", 10.0f, juce::Font::plain));
     filePathLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha(0.7f));
     filePathLabel.setJustificationType (juce::Justification::centred);
@@ -121,7 +116,6 @@ void KeyFinderAudioProcessorEditor::updateTabVisibility()
     analyzeButton.setVisible (activeTab == LIVE);
     analyzingIndicator.setVisible (activeTab == LIVE && audioProcessor.isAnalyzing());
 
-    loadFileButton.setVisible (activeTab == FILE);
     filePathLabel.setVisible (activeTab == FILE && audioProcessor.isFileLoaded());
 
     exportFormatCombo.setVisible (activeTab == EXPORT);
@@ -129,46 +123,36 @@ void KeyFinderAudioProcessorEditor::updateTabVisibility()
     lastExportLabel.setVisible (activeTab == EXPORT);
 }
 
-void KeyFinderAudioProcessorEditor::loadFile()
-{
-    juce::FileChooser chooser ("Select Audio File", juce::File{}, "*.wav;*.mp3;*.aiff;*.aif;*.flac");
-
-    if (chooser.browseForFileToOpen())
-    {
-        audioProcessor.loadAndAnalyzeFile (chooser.getResult());
-        filePathLabel.setText (chooser.getResult().getFileName(), juce::dontSendNotification);
-    }
-}
-
 void KeyFinderAudioProcessorEditor::exportResults (int formatIndex)
 {
-    juce::FileChooser chooser ("Export Results", juce::File{}, "*.*");
+    // Export not available in VST - show message
+    lastExportLabel.setText ("Use desktop app for export", juce::dontSendNotification);
+}
 
-    juce::String extension;
-    juce::String filter;
-
-    switch (formatIndex)
+bool KeyFinderAudioProcessorEditor::isInterestedInFileDrag (const juce::StringArray& files)
+{
+    // Accept audio files
+    for (auto file : files)
     {
-        case 0: extension = ".xml"; filter = "*.xml"; break;
-        case 1: extension = ".csv"; filter = "*.csv"; break;
-        case 2: extension = ".nml"; filter = "*.nml"; break;
-        default: extension = ".xml"; filter = "*.xml"; break;
-    }
-
-    juce::File file (chooser.getResult().getFullPathName() + extension);
-
-    if (chooser.browseForFileToSave (true))
-    {
-        juce::File saveFile (chooser.getResult().withFileExtension (extension));
-
-        switch (formatIndex)
+        if (file.endsWithIgnoreCase (".wav") ||
+            file.endsWithIgnoreCase (".mp3") ||
+            file.endsWithIgnoreCase (".aiff") ||
+            file.endsWithIgnoreCase (".aif") ||
+            file.endsWithIgnoreCase (".flac") ||
+            file.endsWithIgnoreCase (".m4a"))
         {
-            case 0: audioProcessor.exportToRekordboxXML (saveFile); break;
-            case 1: audioProcessor.exportToSeratoCSV (saveFile); break;
-            case 2: audioProcessor.exportToTraktorNML (saveFile); break;
+            return true;
         }
+    }
+    return false;
+}
 
-        lastExportLabel.setText ("Exported: " + saveFile.getFileName(), juce::dontSendNotification);
+void KeyFinderAudioProcessorEditor::filesDropped (const juce::StringArray& files, int x, int y)
+{
+    if (files.size() > 0 && isInterestedInFileDrag (files))
+    {
+        audioProcessor.loadAndAnalyzeFile (juce::File (files[0]));
+        filePathLabel.setText (juce::File (files[0]).getFileName(), juce::dontSendNotification);
     }
 }
 
@@ -196,12 +180,18 @@ void KeyFinderAudioProcessorEditor::paint (juce::Graphics& g)
     }
     else if (activeTab == FILE)
     {
+        // Draw drop zone indicator
         g.setFont (juce::Font ("Courier", 10.0f, juce::Font::plain));
         g.setColour (juce::Colours::white.withAlpha(0.5f));
-        g.drawText ("FILE ANALYSIS", 0, 100, getWidth(), 20, juce::Justification::centred);
-        g.drawText ("KEY", 0, 200, getWidth(), 20, juce::Justification::centred);
-        g.drawText ("CAMELOT", 0, 320, getWidth(), 20, juce::Justification::centred);
-        g.drawText ("BPM", 0, 440, getWidth(), 20, juce::Justification::centred);
+        g.drawText ("DROP AUDIO FILE HERE", 0, 100, getWidth(), 20, juce::Justification::centred);
+        g.drawText ("(or drag to analyze)", 0, 120, getWidth(), 20, juce::Justification::centred);
+
+        g.setColour (juce::Colours::white.withAlpha(0.1f));
+        juce::Rectangle<int> dropZone (40, 150, getWidth() - 80, 100);
+        g.drawRect (dropZone, 1.0f);
+
+        g.drawText ("KEY", 0, 260, getWidth(), 20, juce::Justification::centred);
+        g.drawText ("CAMELOT", 0, 380, getWidth(), 20, juce::Justification::centred);
     }
 }
 
@@ -234,7 +224,6 @@ void KeyFinderAudioProcessorEditor::resized()
     }
     else if (activeTab == FILE)
     {
-        loadFileButton.setBounds (area.removeFromTop (60).reduced (40));
         filePathLabel.setBounds (area.removeFromTop (25).reduced (20));
 
         keyLabel.setBounds (area.removeFromTop (70));
@@ -293,7 +282,7 @@ void KeyFinderAudioProcessorEditor::timerCallback()
         }
         else
         {
-            statusLabel.setText ("Load a file to analyze", juce::dontSendNotification);
+            statusLabel.setText ("Drop a file to analyze", juce::dontSendNotification);
         }
     }
 

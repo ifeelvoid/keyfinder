@@ -10,6 +10,9 @@ public:
     KeyFinderAudioProcessorEditor (KeyFinderAudioProcessor&);
     ~KeyFinderAudioProcessorEditor() override;
 
+    bool isInterestedInFileDrag (const juce::StringArray& files);
+    void filesDropped (const juce::StringArray& files, int x, int y);
+
     void paint (juce::Graphics&) override;
     void resized() override;
     void timerCallback() override;
@@ -19,7 +22,6 @@ private:
 
     void setActiveTab (TabType tab);
     void updateTabVisibility();
-    void loadFile();
     void exportResults (int formatIndex);
 
     KeyFinderAudioProcessor& audioProcessor;
@@ -42,7 +44,6 @@ private:
     juce::Label bpmLabel;
 
     // FILE tab controls
-    juce::TextButton loadFileButton;
     juce::Label filePathLabel;
 
     // EXPORT tab controls

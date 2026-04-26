@@ -2,26 +2,34 @@
 
 <JUCERPROJECT id="KeyFnd" name="KeyFinderVST" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" bundleIdentifier="com.keyfinder.vst"
-              pluginManufacturer="KeyFinder" pluginManufacturerCode="KFnd" pluginCode="KFvs"
-              pluginChannelConfigs="{2, 2}" pluginIsSynth="0" pluginWantsMidiIn="0"
-              pluginProducesMidiOut="0" pluginIsMidiEffectPlugin="0" pluginEditorRequiresKeys="0"
-              pluginAUExportPrefix="KeyFinderVSTAU" aaxIdentifier="com.keyfinder.vst"
-              pluginAAXCategory="2" companyName="KeyFinder" companyWebsite="https://github.com"
-              companyEmail="support@keyfinder.com" pluginRTASCategory="2" version="1.0.0"
-              pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn">
+              pluginManufacturer="KeyFinder" pluginManufacturerCode="KFnd"
+              pluginCode="KFvs" pluginChannelConfigs="{2, 2}" pluginIsSynth="0"
+              pluginWantsMidiIn="0" pluginProducesMidiOut="0" pluginIsMidiEffectPlugin="0"
+              pluginEditorRequiresKeys="0" pluginAUExportPrefix="KeyFinderVSTAU"
+              aaxIdentifier="com.keyfinder.vst" pluginAAXCategory="2" companyName="KeyFinder"
+              companyWebsite="https://github.com" companyEmail="support@keyfinder.com"
+              pluginRTASCategory="2" version="1.0.0" pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn">
   <MAINGROUP id="QkrCPW" name="KeyFinderVST">
     <GROUP id="{9F3E8C12-B8A1-D3F1-7C6E-4A2B1F5D8E9C}" name="Source">
-      <FILE id="PluginProcessor.cpp" name="PluginProcessor.cpp" compile="1" resource="0" file="Source/PluginProcessor.cpp"/>
-      <FILE id="PluginProcessor.h" name="PluginProcessor.h" compile="0" resource="0" file="Source/PluginProcessor.h"/>
-      <FILE id="PluginEditor.cpp" name="PluginEditor.cpp" compile="1" resource="0" file="Source/PluginEditor.cpp"/>
-      <FILE id="PluginEditor.h" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
-      <FILE id="KeyDetector.h" name="KeyDetector.h" compile="0" resource="0" file="Source/KeyDetector.h"/>
-      <FILE id="KeyDetector.cpp" name="KeyDetector.cpp" compile="1" resource="0" file="Source/KeyDetector.cpp"/>
-      <FILE id="BPMDetector.h" name="BPMDetector.h" compile="0" resource="0" file="Source/BPMDetector.h"/>
-      <FILE id="BPMDetector.cpp" name="BPMDetector.cpp" compile="1" resource="0" file="Source/BPMDetector.cpp"/>
+      <FILE id="PluginProcessor.cpp" name="PluginProcessor.cpp" compile="1"
+            resource="0" file="Source/PluginProcessor.cpp"/>
+      <FILE id="PluginProcessor.h" name="PluginProcessor.h" compile="0" resource="0"
+            file="Source/PluginProcessor.h"/>
+      <FILE id="PluginEditor.cpp" name="PluginEditor.cpp" compile="1" resource="0"
+            file="Source/PluginEditor.cpp"/>
+      <FILE id="PluginEditor.h" name="PluginEditor.h" compile="0" resource="0"
+            file="Source/PluginEditor.h"/>
+      <FILE id="KeyDetector.h" name="KeyDetector.h" compile="0" resource="0"
+            file="Source/KeyDetector.h"/>
+      <FILE id="KeyDetector.cpp" name="KeyDetector.cpp" compile="1" resource="0"
+            file="Source/KeyDetector.cpp"/>
+      <FILE id="BPMDetector.h" name="BPMDetector.h" compile="0" resource="0"
+            file="Source/BPMDetector.h"/>
+      <FILE id="BPMDetector.cpp" name="BPMDetector.cpp" compile="1" resource="0"
+            file="Source/BPMDetector.cpp"/>
     </GROUP>
   </MAINGROUP>
-  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0" JUCE_MODAL_LOOPS_PERMITTED="1"/>
   <EXPORTFORMATS>
     <XCODE_MAC targetFolder="Builds/MacOSX" extraCompilerFlags="-std=c++17">
       <CONFIGURATIONS>
@@ -29,19 +37,19 @@
         <CONFIGURATION isDebug="0" name="Release" targetName="KeyFinderVST"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_audio_basics" path=""/>
-        <MODULEPATH id="juce_audio_devices" path=""/>
-        <MODULEPATH id="juce_audio_formats" path=""/>
-        <MODULEPATH id="juce_audio_plugin_client" path=""/>
-        <MODULEPATH id="juce_audio_processors" path=""/>
-        <MODULEPATH id="juce_audio_utils" path=""/>
-        <MODULEPATH id="juce_core" path=""/>
-        <MODULEPATH id="juce_data_structures" path=""/>
-        <MODULEPATH id="juce_dsp" path=""/>
-        <MODULEPATH id="juce_events" path=""/>
-        <MODULEPATH id="juce_graphics" path=""/>
-        <MODULEPATH id="juce_gui_basics" path=""/>
-        <MODULEPATH id="juce_gui_extra" path=""/>
+        <MODULEPATH id="juce_audio_basics" path="../JUCE"/>
+        <MODULEPATH id="juce_audio_devices" path="../JUCE"/>
+        <MODULEPATH id="juce_audio_formats" path="../JUCE"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../JUCE"/>
+        <MODULEPATH id="juce_audio_processors" path="../JUCE"/>
+        <MODULEPATH id="juce_audio_utils" path="../JUCE"/>
+        <MODULEPATH id="juce_core" path="../JUCE"/>
+        <MODULEPATH id="juce_data_structures" path="../JUCE"/>
+        <MODULEPATH id="juce_dsp" path="../JUCE"/>
+        <MODULEPATH id="juce_events" path="../JUCE"/>
+        <MODULEPATH id="juce_graphics" path="../JUCE"/>
+        <MODULEPATH id="juce_gui_basics" path="../JUCE"/>
+        <MODULEPATH id="juce_gui_extra" path="../JUCE"/>
       </MODULEPATHS>
     </XCODE_MAC>
   </EXPORTFORMATS>
@@ -49,8 +57,11 @@
     <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
     <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors_headless" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
     <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>

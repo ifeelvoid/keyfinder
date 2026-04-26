@@ -60,7 +60,7 @@ cat > "${CONTENTS_DIR}/Info.plist" << 'EOF'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.9</string>
+    <string>2.0</string>
     <key>CFBundleVersion</key>
     <string>9</string>
     <key>CFBundleIconFile</key>
@@ -126,4 +126,4 @@ echo "Creating DMG..."
 ./make-dmg.sh
 
 echo ""
-echo "✅ DMG created: KeyFinder-v1.9.dmg"
+echo "✅ DMG created: KeyFinder-v2.0.dmg"

@@ -11,6 +11,17 @@ struct MiniWaveformView: View {
     // Higher resolution sample count for better detail
     private let targetSamples = 100
 
+    // Convenience initializer that accepts TrackAnalysis
+    init(track: TrackAnalysis) {
+        self.filePath = track.filePath
+        self.beatGrid = track.beatGrid
+    }
+
+    init(filePath: URL, beatGrid: BeatGridData?) {
+        self.filePath = filePath
+        self.beatGrid = beatGrid
+    }
+
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
