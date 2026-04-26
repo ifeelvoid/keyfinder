@@ -187,11 +187,12 @@ void KeyFinderAudioProcessorEditor::paint (juce::Graphics& g)
         g.drawText ("(or drag to analyze)", 0, 120, getWidth(), 20, juce::Justification::centred);
 
         g.setColour (juce::Colours::white.withAlpha(0.1f));
-        juce::Rectangle<int> dropZone (40, 150, getWidth() - 80, 100);
+        juce::Rectangle<int> dropZone (40, 145, getWidth() - 80, 80);
         g.drawRect (dropZone, 1.0f);
 
-        g.drawText ("KEY", 0, 260, getWidth(), 20, juce::Justification::centred);
-        g.drawText ("CAMELOT", 0, 380, getWidth(), 20, juce::Justification::centred);
+        g.drawText ("KEY", 0, 230, getWidth(), 20, juce::Justification::centred);
+        g.drawText ("CAMELOT", 0, 350, getWidth(), 20, juce::Justification::centred);
+        g.drawText ("BPM", 0, 470, getWidth(), 20, juce::Justification::centred);
     }
 }
 

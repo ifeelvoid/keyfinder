@@ -2,13 +2,13 @@
 
 <JUCERPROJECT id="KeyFnd" name="KeyFinderVST" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" bundleIdentifier="com.keyfinder.vst"
-              pluginManufacturer="KeyFinder" pluginManufacturerCode="KFnd"
+              pluginManufacturer="IFEELVOID" pluginManufacturerCode="IFVO"
               pluginCode="KFvs" pluginChannelConfigs="{2, 2}" pluginIsSynth="0"
               pluginWantsMidiIn="0" pluginProducesMidiOut="0" pluginIsMidiEffectPlugin="0"
               pluginEditorRequiresKeys="0" pluginAUExportPrefix="KeyFinderVSTAU"
               aaxIdentifier="com.keyfinder.vst" pluginAAXCategory="2" companyName="KeyFinder"
               companyWebsite="https://github.com" companyEmail="support@keyfinder.com"
-              pluginRTASCategory="2" version="1.0.0" pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn">
+              pluginRTASCategory="2" version="2.0.0" pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn">
   <MAINGROUP id="QkrCPW" name="KeyFinderVST">
     <GROUP id="{9F3E8C12-B8A1-D3F1-7C6E-4A2B1F5D8E9C}" name="Source">
       <FILE id="PluginProcessor.cpp" name="PluginProcessor.cpp" compile="1"

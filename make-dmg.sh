@@ -1,9 +1,9 @@
 #!/bin/bash
-# Creates a distributable DMG with install instructions
+# Creates a distributable DMG with install instructions and VST/AU plugins
 set -e
 
 APP_NAME="KeyFinder"
-VERSION="1.9"
+VERSION="2.0"
 DMG_NAME="${APP_NAME}-v${VERSION}.dmg"
 STAGING="build/dmg-staging"
 BUILD_DIR=".build/arm64-apple-macosx/release"
@@ -16,12 +16,26 @@ rm -rf "${STAGING}"
 mkdir -p "${STAGING}"
 mkdir -p "${STAGING}/${APP_NAME}.app/Contents/MacOS"
 mkdir -p "${STAGING}/${APP_NAME}.app/Contents/Resources"
+mkdir -p "${STAGING}/VST3"
+mkdir -p "${STAGING}/AU"
 
 # Copy the executable
 cp "${BUILD_DIR}/${APP_NAME}" "${STAGING}/${APP_NAME}.app/Contents/MacOS/"
 
+# Copy VST3 plugin if it exists
+if [ -d "KeyFinderVST/Builds/MacOSX/build/Release/KeyFinderVST.vst3" ]; then
+    cp -R "KeyFinderVST/Builds/MacOSX/build/Release/KeyFinderVST.vst3" "${STAGING}/VST3/"
+    echo "✓ VST3 plugin added"
+fi
+
+# Copy AU plugin if it exists
+if [ -d "KeyFinderVST/Builds/MacOSX/build/Release/KeyFinderVST.component" ]; then
+    cp -R "KeyFinderVST/Builds/MacOSX/build/Release/KeyFinderVST.component" "${STAGING}/AU/"
+    echo "✓ AU plugin added"
+fi
+
 # Create Info.plist
-cat > "${STAGING}/${APP_NAME}.app/Contents/Info.plist" << 'EOF'
+cat > "${STAGING}/${APP_NAME}.app/Contents/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -33,15 +47,15 @@ cat > "${STAGING}/${APP_NAME}.app/Contents/Info.plist" << 'EOF'
     <key>CFBundleName</key>
     <string>KeyFinder</string>
     <key>CFBundleVersion</key>
-    <string>1.9</string>
+    <string>2.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.9</string>
+    <string>2.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
+    <string>10.15</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSPrincipalClass</key>
@@ -66,25 +80,30 @@ fi
 # Create install instructions
 cat > "${STAGING}/HOW TO INSTALL.txt" << 'EOF'
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  KeyFinder v1.9 — Installation Guide
+  KeyFinder v2.0 — Installation Guide
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-STEP 1
-  Drag KeyFinder.app into your Applications folder.
+INSTALLING THE APP
+─────────────────
+  1. Drag KeyFinder.app into your Applications folder.
 
-STEP 2 — First Launch (important)
-  Because this app is not from the Mac App Store,
-  macOS will block it from opening normally.
+  2. On first launch, right-click KeyFinder.app → Open
+     (This is required because the app is not from the Mac App Store)
 
-  DO THIS instead:
-  → Right-click (or Control+click) KeyFinder.app
-  → Select "Open" from the menu
-  → Click "Open" in the popup that appears
+INSTALLING PLUGINS
+──────────────────
+  VST3 Plugin (for Ableton, FL Studio, Logic, etc.):
+    → Copy KeyFinderVST.vst3 to:
+      ~/Library/Audio/Plug-Ins/VST3/
 
-  You only need to do this ONCE.
+  AU Plugin (for Logic, GarageBand, etc.):
+    → Copy KeyFinderVST.component to:
+      ~/Library/Audio/Plug-Ins/Components/
+
+  After copying, restart your DAW to see the plugin.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Requires macOS 12.0 or later
+  Requires macOS 10.15 or later
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF
 
