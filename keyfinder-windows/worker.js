@@ -13,8 +13,16 @@
  */
 
 const { workerData, parentPort } = require('worker_threads');
-const ffmpegStatic = require('ffmpeg-static');
 const { execFileSync } = require('child_process');
+
+// ffmpeg-static is unpacked from ASAR — fix path when running inside a packaged app
+let ffmpegStatic = require('ffmpeg-static');
+if (ffmpegStatic && ffmpegStatic.includes('app.asar' + require('path').sep)) {
+  ffmpegStatic = ffmpegStatic.replace(
+    'app.asar' + require('path').sep,
+    'app.asar.unpacked' + require('path').sep
+  );
+}
 
 // Load essentia.js — use the package index which loads the UMD WASM build
 let essentia = null;
