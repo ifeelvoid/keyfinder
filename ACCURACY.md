@@ -1,165 +1,177 @@
-# Key Detection Accuracy Guide
+# Analysis validation
 
-## How Accurate is KeyFinder?
+KeyFinder 2.1 has no verified head-to-head accuracy result against Mixed In Key.
+The old 90–95% claims and 100-track comparison table lacked a reproducible corpus,
+labels or saved outputs in this repository. They are withdrawn pending evidence.
 
-KeyFinder uses **professional-grade algorithms** comparable to Mixed In Key and TuneBat. Here's what makes it highly accurate:
 
-## Algorithm Details
+## Public EDM challenge (2026-10-12)
 
-### 1. Enhanced Frequency Resolution
-```
-FFT Size: 16,384 samples (vs typical 8,192)
-- Provides 2x better frequency precision
-- Better pitch class separation
-- More reliable for complex harmonies
-```
+The native development-derived profile update scores 32/63 exact keys on a locally
+reserved GiantSteps+ v2 subset, versus 26/63 for the previous detector (six gains,
+zero lost correct predictions; 100% coverage). Development 104→125/230 and
+validation 29→38/85 support the selected change. Librosa 35/63 and Essentia 50/63
+remain stronger free references on the same test recordings. This does not
+establish broad-music accuracy or Mixed In Key parity. All 600 recordings were
+attempted; 222 ambiguous/modal/changing-key/malformed annotations are excluded
+from exact scoring and retained in the frozen policy. See
+[the complete benchmark handoff](docs/briefs/0004-public-key-challenge/handoff.md)
+for raw results, data-partition limits, fingerprints and reproduction.
 
-### 2. Harmonic Weighting
-The algorithm prioritizes different frequency ranges:
+## Private producer catalog (2026-10-17)
 
-| Frequency Range | Weight | Reasoning |
-|----------------|--------|-----------|
-| 80-200 Hz | 2.5x | Bass fundamentals (most reliable) |
-| 200-500 Hz | 2.0x | Mid-bass (strong harmonic content) |
-| 500-1000 Hz | 1.5x | Midrange (melodic information) |
-| 1000-4000 Hz | 1.0x | Treble (less reliable for key) |
+Agreement with the producer's own filename labels on 420 private hip-hop/trap beats,
+read-only and never uploaded. Labels mix human and detector provenance, so this is
+**agreement, not accuracy**. The catalog was not used to choose or tune anything.
 
-**Why bass frequencies?**
-- Bass notes are typically the root/fundamental
-- Less affected by harmonics and overtones
-- Clearer pitch information
-- Professional tools like Mixed In Key use similar weighting
+- Key, labels that state the mode (119): current engine 63/119 (52.9%) vs the
+  previous detector 49/119 (41.2%); across all 151 key labels 19 newly agree, 1 no longer does.
+- Labels that give a bare note such as "Bb" (32) agree far less (6/32), consistent with
+  many of them meaning the minor key; they are reported separately, not as errors.
+- Tempo (178 labels): 84 within 2%, 41 exactly double the label (half-time convention),
+  35 at 4/3 or 2/3 (real metric errors), 16 other (some names hold non-tempo numbers),
+  2 files the decoder could not read. These are the previous tempo detector's figures; the
+  #0011 detector agreed on 104 within 2%, 31 double/half, 26 metric, 15 other, and the
+  current default on 121, 35, 5, 15 (see "Session tempo" and "Tempo metre fix" below,
+  where the truth comes from the Ableton sets and GiantSteps, not filenames).
+- The VST3/AU plug-in engine is a C++ port; on this catalog it matches the app's key and
+  BPM file-for-file (see `docs/briefs/0006-release-candidate-hardening/ledger.md`).
 
-### 3. Krumhansl-Schmuckler Algorithm
-- Based on cognitive music research
-- Correlates pitch class profile with 24 key templates
-- Accounts for how humans perceive key centers
-- Industry-standard approach
+Reproduce with `tools/catalog-agreement.py dist/catalog-2026-10-17`.
 
-### 4. Chromagram Analysis
-- Maps all frequencies to 12 pitch classes (C, C#, D, etc.)
-- Considers harmonic relationships
-- Temporal averaging for stability
+## Spectral whitening / harmonic weighting (2026-10-28, rejected)
 
-## Accuracy Comparison
+Two prespecified chroma changes were tested against the shipped detector and both made it
+worse: one-third-octave spectral whitening scored 85/230 development and 30/85 validation
+exact keys, and whitening with HPCP-style harmonic summation scored 98/230 and 34/85,
+versus 125/230 and 38/85 for the shipped detector. Both raised fifth confusions (development
+28 → 68 and 49). Catalog agreement fell the same way (69/151 → 46 and 48). Production
+behaviour is unchanged. A fresh 1,027-recording GiantSteps-MTG acceptance set is frozen
+and still unused. See `docs/briefs/0005-spectral-key-improvement/ledger.md`.
 
-### vs Mixed In Key
-- **Similar algorithm**: Both use Krumhansl-Schmuckler
-- **Comparable accuracy**: ~90-95% on clear tracks
-- **Difference**: Mixed In Key uses proprietary refinements
+## What the regression suite covers
 
-### vs TuneBat
-- **Same core approach**: Chromagram + key profiles
-- **Expected accuracy**: Within 1-2% in testing
-- **Advantage**: Open source, free
+Generated, redistribution-safe fixtures exercise:
+- all 24 Camelot mappings;
+- compatible/relative/adjacent keys, wheel wraparound, tempo bounds and energy direction;
+- cue placement near known changes, snapping to downbeats, silence and invalid inputs;
+- a 190-second 48 kHz file retaining its duration and late marker after conversion;
+- synthetic 120 BPM pulses and a C-major triad;
+- Rekordbox/NML XML structure, escaping, paths and cue time units;
+- CSV quoting and crate persistence, including original detection and manual correction.
 
-### vs Rekordbox
-- **Rekordbox uses**: Similar spectral analysis
-- **KeyFinder advantage**: Higher FFT resolution
-- **Expected match rate**: 85-90%
+Synthetic success is a regression check, not evidence of commercial-music accuracy.
+XML parsing is not proof of successful import into DJ software.
 
-## When Accuracy May Vary
+## Analysis limits
 
-### High Accuracy (95%+)
-- Clear harmonic content
-- Strong bassline
-- Stable key throughout track
-- Electronic music, house, techno
-- Pop, rock with clear chord progressions
+Key detection uses spectral pitch profiles, multi-segment voting and key templates.
+It can confuse relative major/minor, ambiguous harmonies, key changes and percussion.
+Confidence is a heuristic algorithm score, not a calibrated probability.
 
-### Medium Accuracy (80-90%)
-- Complex jazz harmonies
-- Frequent key changes
-- Atonal or experimental music
-- Heavy distortion
-- Acapellas without instruments
+The tempo search covers 60–180 BPM. Half/double time is inherently ambiguous: the app shows
+the other octave as the Half-time/Double-time alternative. Fast sessions at 140–175 BPM
+are usually reported at half time (see "Tempo metre fix").
+A single tempo grid does not represent live tempo changes. Automatic cue suggestions
+mark measured energy changes, not reliable semantic drop/breakdown recognition.
 
-### Lower Accuracy (<80%)
-- Ambient/drone music (no clear key)
-- Percussion-only tracks
-- Highly modulated/processed audio
-- Tracks with multiple simultaneous keys
+Energy is an RMS loudness estimate. It is not comparable to Mixed In Key's 1–10
+danceability ratings. The mix planner uses it as a rough direction only.
 
-## Tips for Best Results
+## Benchmark required before parity claims
 
-### 1. Use High-Quality Audio
-```
-✅ WAV, FLAC (lossless)
-✅ 320kbps MP3
-⚠️ 128kbps MP3 (may affect accuracy)
-❌ <128kbps (not recommended)
-```
+1. Select at least 100 licensed tracks stratified across house/techno, hip-hop, pop,
+   ambient and harmonically ambiguous music. Keep audio private.
+2. Establish musician-checked key and beat annotations; record disputed labels separately.
+3. Run this exact build and a recorded Mixed In Key version on the identical audio.
+4. Report exact-key accuracy, relative-key errors, tempo accuracy/half-double errors,
+   cue timing deviation, analysis seconds/minute and peak memory by genre.
+5. Save manifests and machine-readable results; reserve a held-out set when tuning.
+6. Test exports by loading tracks in Rekordbox/Traktor/Serato and inspecting actual cues.
 
-### 2. Analyze Full Tracks
-- Algorithm needs sufficient data (minimum 5 seconds)
-- Longer tracks = better averaging
-- Intro sections may not represent full track key
+Until those results exist, describe 2.1 as an improved preparation preview.
 
-### 3. Handle Key Changes
-- Algorithm returns dominant key
-- For tracks with key changes, check manually
-- Consider analyzing sections separately
+## Session tempo (2026-11-02, adopted)
 
-### 4. Verify Parallel Keys
-Sometimes algorithm may return parallel major/minor:
-- **C Major (8B)** vs **C Minor (5A)**
-- **A Minor (8A)** vs **A Major (11B)**
+Ground truth is the master tempo stored in the producer's own Ableton Live sets (`.als`),
+paired read-only with audio rendered from those sets: in-project bounces, mixdowns in the
+project folder, or exports/catalog mixes with the same title. Sets with tempo automation,
+conflicting copies or same-name older beats were excluded. 54 songs (all 4/4) were split
+by song family before any detector ran: development 24, held-out 30. The new detector
+(log spectral flux, autocorrelation scored at one- and two-bar lags, broad prior around
+110 BPM) was fixed before the held-out half was scored once. Brief #0011 ledger has the
+hashes, the candidate specifications and per-song results.
 
-If result seems off, try the parallel key - it might fit better with your mix.
+| Held-out (30 songs) | Within 2% | Half/double | 2/3, 3/4, 4/3, 3/2 | Other |
+|---|---|---|---|---|
+| Previous detector | 16 (36–70%) | 7 | 1 | 6 |
+| Current detector | 24 (63–90%) | 1 | 2 | 3 |
 
-## Validation
+Versus the previous detector: 10 songs gained and 2 lost (sign test p = 0.04).
+Development: 15 → 17 of 24.
+Gains are mostly half-time 80–90 BPM beats that were read as double time.
+Losses are fast double-time sessions (160 and 174) read as 2/3; across both halves this happened on 5 of 54 songs.
+The relayed bounce S81 (session 81) was still wrong under this detector: 122.3, previously 174.4
+(the current default below reads 162.8 with a Half-time 81.4 alternative).
 
-You can validate results by:
+Limits:
+- 54 songs from one producer, so the intervals are wide.
+- A title-matched mix could come from a different version of the set.
+- Audio shorter than about 8.3 s, such as the first live windows, uses the previous detector.
+- The GiantSteps tempo set is not available locally, so no public tempo result is reported.
+- No Mixed In Key or Tunebat comparison was run; there is no parity claim.
+- The plug-in's C++ port matches the app on 472/472 readable files (54 truth plus 418 catalog).
 
-1. **Ear Testing**: Play track, sing root note
-2. **Instrument Check**: Play along on keyboard/guitar
-3. **Cross-Reference**: Compare with Mixed In Key, TuneBat, or Rekordbox
-4. **Harmonic Mixing**: Test if Camelot-adjacent keys mix well
+## Tempo metre fix and public EDM check (2026-11-02, adopted)
 
-## Technical Improvements Over Basic Detection
+The session-tempo detector above read fast trap sessions (141–174 BPM, often produced in
+double time) as 2/3 of the session tempo. The current default lets the bar-level evidence
+alone pick the metre; the preference for tempos near 110 BPM now only chooses between a
+tempo and its half or double. Fixed before testing on public data (brief #0012).
 
-| Feature | Basic Detector | KeyFinder |
-|---------|---------------|-----------|
-| FFT Size | 2048-4096 | 16384 |
-| Frequency Weighting | None | Harmonic (bass priority) |
-| Hop Size | 50% overlap | 75% overlap |
-| Frequency Range | Full spectrum | 80-4000 Hz (musical) |
-| Key Algorithm | Simple peak finding | Krumhansl-Schmuckler |
-| Correlation Method | Basic | Pearson coefficient |
+| | Session tempos, 54 songs (exact / tempo-or-half/double) | GiantSteps tempo v2, 661 EDM tracks (exact / tempo-or-half/double) |
+|---|---|---|
+| Original detector | 31 / 39 | 461 / 513 |
+| Session-tempo detector (#0011) | 41 / 43 | 354 / 449 |
+| **Current default** | **42 / 49** | **386 / 523** |
 
-## Known Limitations
+The 54 session songs were used to design the change, so they are development figures.
+GiantSteps (Knees et al., ISMIR 2015; tempo corrections by Schreiber & Müller, ISMIR 2018)
+was scored once, after the change was frozen. It is used for local evaluation only.
 
-1. **No beatgrid detection** (only BPM, not phase)
-2. **Single key per track** (doesn't track modulations)
-3. **No confidence score** (binary detection)
-4. **CPU intensive** on very large FFT sizes
+On EDM above 160 BPM (mostly drum & bass at 170–175) the current default reports half time
+(3 of 169 exact, 126 of 169 tempo-or-half/double); the app's Double-time alternative shows
+the full tempo. The original detector reports the full tempo on most of those tracks and is
+ahead on exact EDM tempo overall (461 vs 386). A style-specific choice is not shipped
+because it has not been confirmed on fresh data. There is no Mixed In Key or Tunebat
+comparison and no parity claim.
 
-## Future Improvements (Potential)
+## Key model (2026-11-01, adopted)
 
-- [ ] Multi-segment analysis for key changes
-- [ ] Confidence scoring
-- [ ] Machine learning refinement
-- [ ] Real-time continuous detection (VST)
-- [ ] Genre-specific profile tuning
+KeyFinder now detects keys with its own small model. It is a key-equivariant network over a
+72-semitone pitch profile taken from the existing spectral peaks. It was trained only on
+data KeyFinder may use:
 
-## Accuracy Stats (Self-Tested)
+- 293 GiantSteps+ recordings.
+- 622 GiantSteps-MTG recordings from one half of an artist-family split.
+- 31 trusted tracks from the producer catalog.
 
-Based on 100-track test set compared to Mixed In Key:
+Every result below comes from one run of the frozen binary on data never used for training.
 
-- **Electronic/House**: 94% exact match
-- **Pop/Rock**: 91% exact match
-- **Hip-Hop**: 89% exact match
-- **Jazz**: 82% exact match
-- **Overall**: 90% exact match
+| Exact keys | Previous (learned50) | Key model | Essentia bgate | Essentia edma |
+|---|---:|---:|---:|---:|
+| GiantSteps-MTG fresh test half (493, 142 major) | 202 (41.0%) | **281 (57.0%)** | 294 (59.6%) | 275 (55.8%) |
+| GiantSteps+ validation (85) | 38 (44.7%) | **61 (71.8%)** | 64 (75.3%) | 61 (71.8%) |
+| Producer catalog held-out (44 trusted, all minor) | 33 (75.0%) | **40 (90.9%)** | n/a* | n/a* |
 
-*Note: ~5% of differences were parallel major/minor (both technically correct)*
+- Against the previous detector, the model gains 124 and loses 45 recordings on the MTG test half (sign test p ≈ 1e-9).
+- On GiantSteps+ validation it gains 28 and loses 5, and fifth errors fall from 15 to 3.
+- Against Essentia on the same audio the differences are not statistically significant (MTG test vs bgate: 75 Essentia wins, 62 model wins, p = 0.31).
+- Major keys are unchanged (85 vs 87 of 142); the gain is in minor keys (196 vs 115 of 351).
+- \*Catalog labels count as trusted only where Essentia edma agrees, so Essentia is excluded there by construction. With only 29 families, all minor, the interval is wide (78.8–96.4%).
 
-## Conclusion
+Catalog-fitted Trap / Hip-Hop templates were tested as an alternative. They were rejected: 31/44 held-out, 185/493 MTG. The Key Style setting is hidden in the app and plugin while both styles use the same model; its code and tests remain.
 
-KeyFinder provides **professional-grade accuracy** suitable for:
-- DJ library organization
-- Harmonic mixing preparation
-- Music production reference
-- Educational purposes
+All of this is EDM and producer-catalog evidence. It is not a broad-market accuracy claim. There is no Mixed In Key comparison: MIK could not be run head-to-head here.
 
-For critical professional use, always **verify by ear** and cross-reference with multiple tools when unsure.
+The model weights derive from CC BY-SA 4.0 annotations: GiantSteps+ v2 (https://zenodo.org/records/4153506) and GiantSteps-MTG / Beatport EDM Key by Eduard Mas Marín and Ángel Faraldo (https://zenodo.org/records/1101082). The weights are offered under the same terms; see `packaging/CREDITS.txt`. Full provenance: `docs/briefs/0010-genre-key-models/`.

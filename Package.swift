@@ -17,8 +17,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "KeyFinder",
-            dependencies: [.product(name: "KeyFinderEngine", package: "KeyFinderEngine")],
-            resources: [.process("Resources")]
+            dependencies: [.product(name: "KeyFinderEngine", package: "KeyFinderEngine")]
         )
     ]
 )

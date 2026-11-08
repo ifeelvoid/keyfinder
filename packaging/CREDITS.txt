@@ -1,0 +1,16 @@
+KeyFinder: data credits and licences
+
+KeyFinder's code is MIT licensed. Its key profiles and key-model weights were fitted by
+the KeyFinder project. They derive from these human annotations, released under
+Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0):
+
+- GiantSteps+ v2 key annotations. https://zenodo.org/records/4153506
+- GiantSteps-MTG / Beatport EDM Key dataset. Annotators: Eduard Mas Marín and Ángel Faraldo.
+  https://zenodo.org/records/1101082
+
+The derived weights are offered under the same CC BY-SA 4.0 terms:
+https://creativecommons.org/licenses/by-sa/4.0/
+
+The key model's training data also includes 31 tracks from IFEELVOID's own catalog.
+Their filename labels were trusted only where they agreed with an independent free
+detector. No catalog audio is distributed. KeyFinder includes no Essentia or madmom code or models.

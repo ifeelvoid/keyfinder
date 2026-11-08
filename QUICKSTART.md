@@ -2,20 +2,22 @@
 
 ## Desktop App
 
-### Build & Launch (One Command)
+### Build Both Products
 ```bash
-./build-all.sh
+KEYFINDER_JUCE_DIR=/path/to/JUCE ./build-all.sh
 ```
 
 This will:
 - Build the desktop app
-- Automatically launch it
-- Build VST if JUCE is installed
+- Build universal VST3 and AU plugins using the specified JUCE checkout
+- Leave launching and installation to explicit commands
+
+Use `./build-all.sh --skip-plugins` for the desktop app alone.
 
 ### Manual Build
 ```bash
 ./build-app.sh
-open build/KeyFinder.app
+open dist/KeyFinder.app
 ```
 
 ## Using the Desktop App
@@ -42,9 +44,14 @@ cd ~
 git clone https://github.com/juce-framework/JUCE.git
 ```
 
-2. Build and install VST:
+2. Build and verify the plugins:
 ```bash
-./install-vst.sh
+./install-vst.sh --build-only --juce-dir "$HOME/JUCE"
+```
+
+3. Install explicitly when ready:
+```bash
+./install-vst.sh --install --juce-dir "$HOME/JUCE"
 ```
 
 This installs:
@@ -57,7 +64,7 @@ This installs:
 3. Add "KeyFinder VST" to any audio track
 4. Play the track
 5. Click "ANALYZE" button
-6. Wait 5 seconds
+6. Keep audio playing for the 15-second capture
 7. View key, Camelot, and BPM
 
 ## Example Results
@@ -93,7 +100,7 @@ CAMELOT        BPM
 - Compare with ear test if uncertain
 
 ### Batch Processing (Desktop)
-- Drop entire folders of tracks
+- Select multiple supported audio files
 - Results appear as each track finishes
 - Remove tracks that failed or aren't needed
 - Use for DJ library preparation
@@ -106,15 +113,15 @@ CAMELOT        BPM
 
 ## Camelot Wheel Reference
 
-Perfect harmonic mixing:
-- **Same number, any letter**: C → Cm (8B → 8A)
+Common harmonic relationships:
+- **Same number, any letter**: A minor ↔ C major (8A ↔ 8B)
 - **±1 number, same letter**: 8A → 7A or 9A
 - **Combined**: 8A works with 7A, 8B, 9A
 
 ## Technical Notes
 
 - Desktop app: Batch analyzes unlimited files
-- VST plugin: Captures 5 seconds of live audio
-- Both use identical algorithms (~90-95% accuracy)
-- 16K FFT with harmonic weighting
+- VST plugin: Captures 15 seconds of live audio
+- Plugin detectors port the desktop algorithm; full-track and live results can differ
+- Filename agreement and synthetic fixtures do not establish general accuracy; see ACCURACY.md
 - All processing is local (no internet required)

@@ -9,6 +9,7 @@ struct KeyFinderApp: App {
             EnhancedBatchView()
                 .environmentObject(themeManager)
                 .preferredColorScheme(themeManager.colorScheme)
+                .tint(themeManager.accentColor)
                 .frame(minWidth: 900, minHeight: 600)
         }
         .windowStyle(.hiddenTitleBar)
@@ -37,11 +38,11 @@ struct KeyFinderApp: App {
                             NotificationCenter.default.post(name: .exportRekordbox, object: nil)
                         }
 
-                        Button("Export to Serato CSV...") {
+                        Button("Serato Reference CSV...") {
                             NotificationCenter.default.post(name: .exportSerato, object: nil)
                         }
 
-                        Button("Export to Traktor NML...") {
+                        Button("Traktor NML (experimental)...") {
                             NotificationCenter.default.post(name: .exportTraktor, object: nil)
                         }
 
@@ -62,8 +63,8 @@ struct KeyFinderApp: App {
 
                     Divider()
 
-                    Button("Write Tags to Audio Files...") {
-                        NotificationCenter.default.post(name: .writeTags, object: nil)
+                    Button("Export Metadata Plan...") {
+                        NotificationCenter.default.post(name: .exportMetadataPlan, object: nil)
                     }
                     .keyboardShortcut("t", modifiers: [.command, .shift])
                 }

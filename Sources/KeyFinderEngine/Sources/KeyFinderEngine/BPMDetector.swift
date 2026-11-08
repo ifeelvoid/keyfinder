@@ -3,14 +3,31 @@ import Accelerate
 import AVFoundation
 
 public class BPMDetector {
-    public init() {}
+    public let method: Method
+    public init(method: Method = .combOctave) { self.method = method }
+
+    public enum AnalysisError: Error {
+        case invalidSampleRate, invalidSamples
+    }
 
     public func detectBPM(audioSamples: [Float], sampleRate: Double) async throws -> Double {
+        try Task.checkCancellation()
+        guard sampleRate.isFinite, (4000...192000).contains(sampleRate) else { throw AnalysisError.invalidSampleRate }
+        guard audioSamples.allSatisfy({ $0.isFinite }) else { throw AnalysisError.invalidSamples }
+        if method != .legacy, let tempo = try await combTempo(samples: audioSamples, sampleRate: sampleRate) {
+            return tempo
+        }
+        return try await legacyTempo(samples: audioSamples, sampleRate: sampleRate)
+    }
+
+    func legacyTempo(samples audioSamples: [Float], sampleRate: Double) async throws -> Double {
         // Apply onset detection
         let onsetStrength = await calculateOnsetStrength(samples: audioSamples, sampleRate: sampleRate)
+        try Task.checkCancellation()
 
         // Calculate autocorrelation
-        let tempogram = await calculateAutocorrelation(onsetStrength: onsetStrength)
+        let tempogram = await calculateAutocorrelation(onsetStrength: onsetStrength, sampleRate: sampleRate)
+        try Task.checkCancellation()
 
         // Find peaks corresponding to tempo
         let bpm = findTempoPeak(autocorrelation: tempogram, sampleRate: sampleRate)
@@ -72,7 +89,7 @@ public class BPMDetector {
 
         let log2n = vDSP_Length(log2(Float(size)))
         guard let fftSetup = vDSP_create_fftsetup(log2n, Int32(kFFTRadix2)) else {
-            return [Float](repeating: 0.0, count: size)
+            return [Float](repeating: 0.0, count: size / 2)
         }
 
         var magnitudes = [Float](repeating: 0.0, count: size / 2)
@@ -90,11 +107,15 @@ public class BPMDetector {
         return magnitudes
     }
 
-    private func calculateAutocorrelation(onsetStrength: [Float]) async -> [Float] {
+    private func calculateAutocorrelation(onsetStrength: [Float], sampleRate: Double) async -> [Float] {
         let n = onsetStrength.count
-        var autocorrelation = [Float](repeating: 0.0, count: n)
+        guard n > 1 else { return [] }
+        // Tempo search only consumes lags up to one second. Avoid quadratic work on
+        // a whole-track envelope now that every second of the timeline is retained.
+        let maxLag = min(n - 1, Int(sampleRate / 512) + 1)
+        var autocorrelation = [Float](repeating: 0.0, count: maxLag + 1)
 
-        for lag in 0..<n {
+        for lag in 0...maxLag {
             var sum: Float = 0.0
             for i in 0..<(n - lag) {
                 sum += onsetStrength[i] * onsetStrength[i + lag]
@@ -115,28 +136,28 @@ public class BPMDetector {
 
         let minLag = Int(60.0 / maxBPM * framesPerSecond)
         let maxLag = min(Int(60.0 / minBPM * framesPerSecond), autocorrelation.count - 1)
+        guard minLag <= maxLag else { return 0 }
 
-        var maxPeak: Float = 0.0
-        var maxPeakLag = minLag
-
-        // Find the peak in the autocorrelation within the BPM range
-        for lag in minLag...maxLag {
-            if autocorrelation[lag] > maxPeak {
-                // Check if it's a local maximum
-                if lag > 0 && lag < autocorrelation.count - 1 {
-                    if autocorrelation[lag] > autocorrelation[lag - 1] &&
-                       autocorrelation[lag] > autocorrelation[lag + 1] {
-                        maxPeak = autocorrelation[lag]
-                        maxPeakLag = lag
-                    }
-                }
-            }
+        let peaks = (minLag...maxLag).filter { lag in
+            lag > 0 && lag + 1 < autocorrelation.count &&
+                autocorrelation[lag] > autocorrelation[lag - 1] &&
+                autocorrelation[lag] >= autocorrelation[lag + 1]
         }
-
-        // Convert lag to BPM
-        let bpm = 60.0 * framesPerSecond / Double(maxPeakLag)
-
-        // Round to one decimal place
+        guard var chosen = peaks.max(by: { autocorrelation[$0] < autocorrelation[$1] }),
+              autocorrelation[chosen] > 0 else { return 0 }
+        // Onsets between envelope frames smear the fundamental across two bins,
+        // while its double-period peak can land on one. Prefer a supported half-lag.
+        if let fundamental = peaks.filter({ abs(Double($0) * 2 - Double(chosen)) <= 2 &&
+            autocorrelation[$0] >= autocorrelation[chosen] * 0.55 })
+            .max(by: { autocorrelation[$0] < autocorrelation[$1] }) {
+            chosen = fundamental
+        }
+        let left = Double(autocorrelation[chosen - 1])
+        let center = Double(autocorrelation[chosen])
+        let right = Double(autocorrelation[chosen + 1])
+        let denominator = left - 2 * center + right
+        let offset = abs(denominator) > 0.000001 ? max(-0.5, min(0.5, 0.5 * (left - right) / denominator)) : 0
+        let bpm = 60 * framesPerSecond / (Double(chosen) + offset)
         return round(bpm * 10) / 10
     }
 }

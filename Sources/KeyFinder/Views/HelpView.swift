@@ -48,7 +48,7 @@ struct HelpView: View {
                     HelpItem(
                         number: "3",
                         title: "Export",
-                        description: "Export to CSV, Rekordbox XML, or Serato format"
+                        description: "Export Rekordbox XML or a metadata reference CSV"
                     )
                 }
 
@@ -183,7 +183,7 @@ struct HelpView: View {
                     )
                     ExportFormat(
                         format: "Serato CSV",
-                        description: "Import into Serato DJ with instructions"
+                        description: "Reference CSV only; does not write Serato tags or cues"
                     )
                 }
 
@@ -197,6 +197,14 @@ struct HelpView: View {
                     TipItem(tip: "Drag images onto album art to replace artwork")
                     TipItem(tip: "Click waveform to seek to specific position")
                     TipItem(tip: "Switch theme via menu or header icon")
+                }
+
+                HelpSection(
+                    title: "DATA CREDITS",
+                    icon: "music.quarternote.3"
+                ) {
+                    TipItem(tip: "Key profiles and model weights derive from CC BY-SA 4.0 annotations: GiantSteps+ v2 (zenodo.org/records/4153506) and GiantSteps-MTG / Beatport EDM Key by Eduard Mas Marín and Ángel Faraldo (zenodo.org/records/1101082)")
+                    TipItem(tip: "No Essentia or madmom code or models are included; accuracy notes are in ACCURACY.md")
                 }
 
                 Spacer(minLength: 20)

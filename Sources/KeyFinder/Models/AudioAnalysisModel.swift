@@ -61,7 +61,15 @@ struct AnalysisLogEntry: Identifiable {
 
 @MainActor
 class AudioAnalysisModel: ObservableObject {
-    @Published var tracks: [TrackAnalysis] = []
+    @Published var tracks: [TrackAnalysis] = [] {
+        didSet {
+            if persistenceEnabled {
+                generatedMixPlaylist = []
+                mixReasons = [:]
+            }
+            persistLibrary()
+        }
+    }
     @Published var isAnalyzing = false
     @Published var selectedTrack: TrackAnalysis?
     @Published var searchText = ""
@@ -75,6 +83,41 @@ class AudioAnalysisModel: ObservableObject {
     @Published var generatedMixPlaylist: [TrackAnalysis] = []
     @Published var duplicateGroups: [DuplicateGroup] = []
     @Published var isShowingDuplicates = false
+    @Published var mixDirection: EnergyDirection = .hold
+    @Published var mixReasons: [UUID: String] = [:]
+    @Published var libraryWarning: String?
+
+    private let libraryURL: URL
+    private var persistenceEnabled = false
+
+    init(libraryURL: URL? = nil) {
+        self.libraryURL = libraryURL ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("KeyFinder/library-v2.1.json")
+        defer { persistenceEnabled = true }
+        guard FileManager.default.fileExists(atPath: self.libraryURL.path) else { return }
+        do {
+            tracks = try JSONDecoder().decode([TrackAnalysis].self, from: Data(contentsOf: self.libraryURL))
+            for index in tracks.indices {
+                let fingerprint = FileHasher.quickHash(for: tracks[index].filePath)
+                if fingerprint == nil || fingerprint != tracks[index].analysisFingerprint {
+                    tracks[index].error = "File changed or is unavailable. Remove and add it again to analyze the current file."
+                    tracks[index].errorType = fingerprint == nil ? .fileNotFound : .unknown("File changed")
+                }
+            }
+        } catch {
+            libraryWarning = "Saved crate could not be read. It has been preserved on disk."
+            // Never overwrite an unreadable crate with an empty one.
+            return
+        }
+    }
+
+    private func persistLibrary() {
+        guard persistenceEnabled, libraryWarning == nil else { return }
+        do {
+            try FileManager.default.createDirectory(at: libraryURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONEncoder().encode(tracks).write(to: libraryURL, options: .atomic)
+        } catch { libraryWarning = "Crate changes could not be saved: \(error.localizedDescription)" }
+    }
 
     private let audioProcessor = AudioProcessor()
     private let albumArtExtractor = AlbumArtExtractor()
@@ -115,13 +158,11 @@ class AudioAnalysisModel: ObservableObject {
     var filteredTracks: [TrackAnalysis] {
         var result = tracks
 
-        // Search filter
-        if !searchText.isEmpty {
-            result = result.filter { track in
-                track.fileName.lowercased().contains(searchText.lowercased()) ||
-                track.key?.lowercased().contains(searchText.lowercased()) == true ||
-                track.camelotNotation?.lowercased().contains(searchText.lowercased()) == true
-            }
+        // Search filter: every word must match (name/key text, exact Camelot like "4A",
+        // or a BPM range like "140-175").
+        let terms = searchText.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
+        if !terms.isEmpty {
+            result = result.filter { track in terms.allSatisfy { Self.track(track, matches: $0) } }
         }
 
         // Key filter
@@ -171,6 +212,20 @@ class AudioAnalysisModel: ObservableObject {
         return result
     }
 
+    static func track(_ track: TrackAnalysis, matches term: String) -> Bool {
+        let range = term.split(separator: "-", omittingEmptySubsequences: false)
+        if range.count == 2, let low = Double(range[0]), let high = Double(range[1]) {
+            guard let bpm = Double(track.bpm ?? "") else { return false }
+            return bpm >= min(low, high) && bpm <= max(low, high)
+        }
+        let isCamelot = term.count <= 3 && (term.hasSuffix("a") || term.hasSuffix("b"))
+            && Int(term.dropLast()).map { (1...12).contains($0) } == true
+        if isCamelot { return track.camelotNotation?.lowercased() == term }
+        return track.fileName.lowercased().contains(term)
+            || track.key?.lowercased().contains(term) == true
+            || track.camelotNotation?.lowercased().contains(term) == true
+    }
+
     // MARK: - Preset Filtering
 
     func applyPreset(_ preset: DJPreset) {
@@ -193,6 +248,7 @@ class AudioAnalysisModel: ObservableObject {
 
     func addFiles(_ urls: [URL]) async {
         for url in urls {
+            guard !tracks.contains(where: { $0.filePath.standardizedFileURL == url.standardizedFileURL }) else { continue }
             let track = TrackAnalysis(
                 fileName: url.lastPathComponent,
                 filePath: url,
@@ -207,164 +263,64 @@ class AudioAnalysisModel: ObservableObject {
     }
 
     func analyzeAllPending() async {
+        guard !isAnalyzing else { return }
         isAnalyzing = true
-        addLogEntry("Starting analysis of pending tracks...", type: .info)
-
-        // Determine batch size based on system capabilities
-        // Apple Silicon can handle more concurrent tasks efficiently
-        let batchSize = PerformanceUtils.optimalBatchSize
-
-        // First pass: Check cache for all pending tracks
-        let pendingIndices = tracks.indices.filter { tracks[$0].key == nil && tracks[$0].error == nil }
-        var cachedCount = 0
-
-        // Check cached results first
-        for index in pendingIndices {
-            let url = tracks[index].filePath
-            if let cacheEntry = FileHasher.getCachedAnalysis(for: url) {
-                // Restore from cache
-                tracks[index].key = cacheEntry.key
-                tracks[index].camelotNotation = cacheEntry.camelotNotation
-                tracks[index].bpm = cacheEntry.bpm
-                tracks[index].confidence = cacheEntry.confidence
-                tracks[index].duration = cacheEntry.duration
-                tracks[index].energy = cacheEntry.energy
-                cachedCount += 1
-                addLogEntry("Loaded '\(tracks[index].fileName)' from cache - Key: \(cacheEntry.key), BPM: \(cacheEntry.bpm)", type: .success)
-            }
-        }
-
-        if cachedCount > 0 {
-            addLogEntry("Restored \(cachedCount) tracks from cache", type: .info)
-        }
-
-        // Get indices that still need analysis
-        let stillPendingIndices = tracks.indices.filter { tracks[$0].key == nil && tracks[$0].error == nil }
-
-        if stillPendingIndices.isEmpty {
-            addLogEntry("No tracks need analysis", type: .info)
-            isAnalyzing = false
-            return
-        }
-
-        addLogEntry("Analyzing \(stillPendingIndices.count) tracks...", type: .progress)
-
-        // Process remaining files in batches with optimized concurrency
-        for batchStart in stride(from: 0, to: stillPendingIndices.count, by: batchSize) {
-            let batchEnd = min(batchStart + batchSize, stillPendingIndices.count)
-            let batch = Array(stillPendingIndices[batchStart..<batchEnd])
-
-            // Mark batch as analyzing
-            for index in batch {
-                tracks[index].isAnalyzing = true
-            }
-
-            // Process batch in parallel
-            await withTaskGroup(of: (Int, Result<AudioProcessor.AnalysisResult, Error>).self) { group in
-                for index in batch {
-                    group.addTask {
-                        do {
-                            let result = try await self.audioProcessor.analyzeAudioFile(at: self.tracks[index].filePath)
-                            return (index, .success(result))
-                        } catch {
-                            return (index, .failure(error))
-                        }
-                    }
+        defer { isAnalyzing = false }
+        // Stable IDs survive removal/reordering during an await. Bound memory across files.
+        while let track = tracks.first(where: { $0.key == nil && !$0.hasError }) {
+            guard let index = tracks.firstIndex(where: { $0.id == track.id }) else { continue }
+            tracks[index].isAnalyzing = true
+            do {
+                let result = try await audioProcessor.analyzeAudioFile(at: track.filePath, keyStyle: KeyStyle.stored())
+                guard let current = tracks.firstIndex(where: { $0.id == track.id }) else { continue }
+                apply(result, at: current)
+                addLogEntry("Prepared '\(track.fileName)' — \(result.key.shortName), \(String(format: "%.1f", result.bpm)) BPM", type: .success)
+            } catch {
+                if let current = tracks.firstIndex(where: { $0.id == track.id }) {
+                    tracks[current].error = error.localizedDescription
+                    tracks[current].errorType = categorizeError(error, for: track.filePath)
+                    tracks[current].isAnalyzing = false
                 }
-
-                // Collect results
-                for await (index, result) in group {
-                    switch result {
-                    case .success(let analysisResult):
-                        tracks[index].key = analysisResult.key.shortName
-                        tracks[index].camelotNotation = analysisResult.key.camelotNotation
-                        tracks[index].bpm = String(format: "%.1f", analysisResult.bpm)
-                        tracks[index].confidence = analysisResult.confidence
-                        tracks[index].duration = analysisResult.duration
-                        tracks[index].energy = analysisResult.energy.rawValue
-
-                        // Save to cache for future use
-                        let url = tracks[index].filePath
-                        if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-                           let modDate = attributes[.modificationDate] as? Date,
-                           let fileSize = attributes[.size] as? Int64,
-                           let quickHash = FileHasher.quickHash(for: url) {
-                            let cacheEntry = FileHasher.CacheEntry(
-                                fileHash: quickHash,
-                                modificationDate: modDate,
-                                analysisDate: Date(),
-                                key: analysisResult.key.shortName,
-                                camelotNotation: analysisResult.key.camelotNotation,
-                                bpm: String(format: "%.1f", analysisResult.bpm),
-                                confidence: analysisResult.confidence,
-                                duration: analysisResult.duration,
-                                energy: analysisResult.energy.rawValue,
-                                fileSize: fileSize
-                            )
-                            FileHasher.saveAnalysis(cacheEntry, for: url)
-                        }
-
-                        addLogEntry("Analyzed '\(tracks[index].fileName)' - Key: \(analysisResult.key.shortName) (\(analysisResult.key.camelotNotation)), BPM: \(String(format: "%.1f", analysisResult.bpm)), Confidence: \(Int(analysisResult.confidence * 100))%", type: .success)
-
-                        // Add key changes if detected
-                        tracks[index].keyChanges = analysisResult.keyChanges.map { (timestamp, key, confidence) in
-                            KeyChange(
-                                timestamp: timestamp,
-                                key: key.shortName,
-                                camelotNotation: key.camelotNotation,
-                                confidence: confidence
-                            )
-                        }
-
-                        // Add beatgrid data if available
-                        if let beatGrid = analysisResult.beatGrid {
-                            let beatDataList = beatGrid.beats.map { beat in
-                                BeatGridData.BeatData(
-                                    time: beat.time,
-                                    strength: beat.strength,
-                                    isDownbeat: beat.isDownbeat,
-                                    beatNumber: beat.beatNumber
-                                )
-                            }
-
-                            let timeSignatureStr: String
-                            switch beatGrid.timeSignature {
-                            case .threeFour: timeSignatureStr = "3/4"
-                            case .sixEight: timeSignatureStr = "6/8"
-                            case .fourFour: fallthrough
-                            @unknown default: timeSignatureStr = "4/4"
-                            }
-
-                            tracks[index].beatGrid = BeatGridData(
-                                bpm: beatGrid.bpm,
-                                timeSignature: timeSignatureStr,
-                                firstDownbeatTime: beatGrid.firstDownbeatTime,
-                                beats: beatDataList,
-                                hasValidGrid: true
-                            )
-                            tracks[index].timeSignature = timeSignatureStr
-                        }
-                    case .failure(let error):
-                        // Categorize the error
-                        let errorType = categorizeError(error, for: tracks[index].filePath)
-                        tracks[index].error = error.localizedDescription
-                        tracks[index].errorType = errorType
-
-                        addLogEntry("Failed to analyze '\(tracks[index].fileName)' - \(errorType.displayTitle): \(errorType.displayDescription)", type: .error)
-                    }
-                    tracks[index].isAnalyzing = false
-                }
+                addLogEntry("Analysis failed: \(error.localizedDescription)", type: .error)
             }
         }
-
-        let successCount = tracks.filter { $0.key != nil && !$0.hasError }.count
-        let failCount = tracks.filter { $0.hasError }.count
-        addLogEntry("Analysis complete: \(successCount) succeeded, \(failCount) failed", type: .info)
-
-        isAnalyzing = false
     }
 
-    /// Categorize an error based on its type and the file being analyzed
+    private func apply(_ result: AudioProcessor.AnalysisResult, at index: Int) {
+        var track = tracks[index]
+        track.key = result.key.shortName
+        track.camelotNotation = result.key.camelotNotation
+        track.bpm = String(format: "%.1f", result.bpm)
+        track.detectedKey = track.key
+        track.detectedCamelot = track.camelotNotation
+        track.detectedBPM = track.bpm
+        track.analysisFingerprint = FileHasher.quickHash(for: track.filePath)
+        track.confidence = result.confidence
+        track.duration = result.duration
+        track.energy = result.energy.rawValue
+        track.error = nil
+        track.errorType = .none
+        track.isAnalyzing = false
+        track.keyChanges = result.keyChanges.map { KeyChange(timestamp: $0.0, key: $0.1.shortName, camelotNotation: $0.1.camelotNotation, confidence: $0.2) }
+        if let grid = result.beatGrid {
+            let signature = grid.timeSignature == .threeFour ? "3/4" : grid.timeSignature == .sixEight ? "6/8" : "4/4"
+            track.beatGrid = BeatGridData(bpm: grid.bpm, timeSignature: signature,
+                                         firstDownbeatTime: grid.firstDownbeatTime,
+                                         beats: grid.beats.map { .init(time: $0.time, strength: $0.strength, isDownbeat: $0.isDownbeat, beatNumber: $0.beatNumber) },
+                                         hasValidGrid: !grid.beats.isEmpty)
+            track.timeSignature = signature
+        }
+        // Reanalysis preserves approved/manual cues, replacing only unconfirmed suggestions.
+        track.cuePoints.removeAll { $0.isSuggested }
+        for suggestion in result.suggestedCues where track.cuePoints.count < 8 {
+            guard track.cuePoints.allSatisfy({ abs($0.timestamp - suggestion.time) > 1 }) else { continue }
+            var cue = CuePoint(timestamp: suggestion.time, name: suggestion.name)
+            cue.isSuggested = true
+            track.cuePoints.append(cue)
+        }
+        tracks[index] = track
+    }
+
     private func categorizeError(_ error: Error, for url: URL) -> AnalysisErrorType {
         let errorMessage = error.localizedDescription.lowercased()
 
@@ -417,6 +373,7 @@ class AudioAnalysisModel: ObservableObject {
         // Clear errors and reset failed tracks
         for index in tracks.indices {
             if tracks[index].hasError {
+                tracks[index].key = nil
                 tracks[index].error = nil
                 tracks[index].errorType = .none
             }
@@ -441,40 +398,11 @@ class AudioAnalysisModel: ObservableObject {
     // MARK: - Retry Single Track
 
     func retryTrack(at index: Int) async {
-        guard index < tracks.count else { return }
-        guard !isAnalyzing else { return }
-
-        let track = tracks[index]
-        addLogEntry("Retrying analysis for '\(track.fileName)'...", type: .info)
-
-        // Clear the error
+        guard tracks.indices.contains(index), !isAnalyzing else { return }
         tracks[index].error = nil
         tracks[index].errorType = .none
-        tracks[index].isAnalyzing = true
-
-        do {
-            let result = try await audioProcessor.analyzeAudioFile(at: track.filePath)
-
-            tracks[index].key = result.key.shortName
-            tracks[index].camelotNotation = result.key.camelotNotation
-            tracks[index].bpm = String(format: "%.1f", result.bpm)
-            tracks[index].confidence = result.confidence
-            tracks[index].duration = result.duration
-            tracks[index].energy = result.energy.rawValue
-            tracks[index].error = nil
-            tracks[index].errorType = .none
-
-            addLogEntry("Successfully analyzed '\(track.fileName)' - Key: \(result.key.shortName)", type: .success)
-        } catch {
-            let errorType = categorizeError(error, for: track.filePath)
-            tracks[index].error = error.localizedDescription
-            tracks[index].errorType = errorType
-            tracks[index].isAnalyzing = false
-
-            addLogEntry("Retry failed for '\(track.fileName)' - \(errorType.displayTitle)", type: .error)
-        }
-
-        tracks[index].isAnalyzing = false
+        tracks[index].key = nil
+        await analyzeAllPending()
     }
 
     func clearAll() {
@@ -491,64 +419,33 @@ class AudioAnalysisModel: ObservableObject {
     ///   - maxTracks: Maximum number of tracks in the mix (default 20)
     ///   - startWithKey: Optional camelot key to start the mix with
     /// - Returns: Array of tracks arranged for harmonic mixing
+    func transition(from: TrackAnalysis, to: TrackAnalysis) -> TransitionAssessment? {
+        guard !from.hasError, !to.hasError, let fromKey = from.camelotNotation, let toKey = to.camelotNotation,
+              let fromBPM = Double(from.bpm ?? ""), let toBPM = Double(to.bpm ?? "") else { return nil }
+        return MixRanker.assess(fromKey: fromKey, fromBPM: fromBPM, fromEnergy: from.energy,
+                                toKey: toKey, toBPM: toBPM, toEnergy: to.energy, direction: mixDirection)
+    }
+
     func generateHarmonicMix(maxTracks: Int = 20, startWithKey: String? = nil) {
-        // Get tracks that have both key and BPM
-        let validTracks = tracks.filter { $0.key != nil && $0.bpm != nil && !$0.hasError }
-
-        guard !validTracks.isEmpty else {
-            generatedMixPlaylist = []
-            return
-        }
-
-        var mix: [TrackAnalysis] = []
-        var availableTracks = validTracks
-
-        // Determine starting key
-        var currentKey: String?
-
-        if let startKey = startWithKey {
-            currentKey = startKey
-            // Find tracks that match the starting key
-            let startTracks = availableTracks.filter { $0.camelotNotation == startKey }
-            if let first = startTracks.first {
-                mix.append(first)
-                availableTracks.removeAll { $0.id == first.id }
-            }
-        } else if let first = availableTracks.randomElement() {
-            // Random starting track
-            currentKey = first.camelotNotation
-            mix.append(first)
-            availableTracks.removeAll { $0.id == first.id }
-        }
-
-        // Build the mix using harmonic mixing
-        while mix.count < maxTracks && !availableTracks.isEmpty {
-            guard let currentCamelot = currentKey else { break }
-
-            let compatibleKeys = getCompatibleCamelotKeys(currentCamelot)
-
-            // Find compatible tracks
-            let compatible = availableTracks.filter { track in
-                if let camelot = track.camelotNotation {
-                    return compatibleKeys.contains(camelot)
+        let valid = tracks.filter { $0.key != nil && (Double($0.bpm ?? "") ?? 0) > 0 && !$0.hasError }
+            .sorted { $0.filePath.path < $1.filePath.path }
+        generatedMixPlaylist = []
+        mixReasons = [:]
+        guard maxTracks > 0, let first = valid.first(where: { startWithKey == nil || $0.camelotNotation == startWithKey }) else { return }
+        var mix = [first]
+        mixReasons[first.id] = "Starting track"
+        while mix.count < maxTracks {
+            let current = mix.last!
+            let candidates = valid.filter { candidate in !mix.contains(where: { $0.id == candidate.id }) }
+                .compactMap { candidate -> (TrackAnalysis, TransitionAssessment)? in
+                    guard let assessment = transition(from: current, to: candidate) else { return nil }
+                    return (candidate, assessment)
                 }
-                return false
-            }
-
-            if let nextTrack = compatible.randomElement() {
-                mix.append(nextTrack)
-                currentKey = nextTrack.camelotNotation
-                availableTracks.removeAll { $0.id == nextTrack.id }
-            } else {
-                // No compatible track found, try to find any remaining track
-                if let next = availableTracks.randomElement() {
-                    mix.append(next)
-                    currentKey = next.camelotNotation
-                    availableTracks.removeAll { $0.id == next.id }
-                }
-            }
+                .sorted { $0.1.score == $1.1.score ? $0.0.filePath.path < $1.0.filePath.path : $0.1.score > $1.1.score }
+            guard let next = candidates.first else { break }
+            mix.append(next.0)
+            mixReasons[next.0.id] = next.1.reasons.joined(separator: " · ")
         }
-
         generatedMixPlaylist = mix
     }
 
@@ -565,22 +462,12 @@ class AudioAnalysisModel: ObservableObject {
             return nil
         }
 
-        var csv = "# Harmonic Mix Playlist generated by KeyFinder\n"
-        csv += "# Generated: \(ISO8601DateFormatter().string(from: Date()))\n"
-        csv += "# Total Tracks: \(generatedMixPlaylist.count)\n\n"
-        csv += "Order,Filename,Key,Camelot,BPM,Duration\n"
-
-        for (index, track) in generatedMixPlaylist.enumerated() {
-            let filename = track.fileName.replacingOccurrences(of: ",", with: ";")
-            let key = track.key ?? ""
-            let camelot = track.camelotNotation ?? ""
-            let bpm = track.bpm ?? ""
-            let duration = String(format: "%.1f", track.duration)
-            csv += "\(index + 1),\(filename),\(key),\(camelot),\(bpm),\(duration)\n"
-        }
-
-        try? csv.write(to: url, atomically: true, encoding: .utf8)
-        return url
+        let rows = [["Order", "Filename", "Key", "Camelot", "BPM", "Duration", "Transition reason"]] +
+            generatedMixPlaylist.enumerated().map { index, track in
+                [String(index + 1), track.fileName, track.key ?? "", track.camelotNotation ?? "", track.bpm ?? "",
+                 String(format: "%.1f", track.duration), mixReasons[track.id] ?? ""]
+            }
+        return writeExport(DJExport.csv(rows), to: url)
     }
 
     // MARK: - Duplicate Detection
@@ -826,41 +713,41 @@ class AudioAnalysisModel: ObservableObject {
             return nil
         }
 
-        var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        xml += "<DJ_PLAYLISTS Version=\"1.0.0\">\n"
-        xml += "  <COLLECTION>\n"
+        return writeExport(DJExport.rekordbox(exportTracks), to: url)
+    }
 
-        for track in tracks {
-            guard let key = track.key, let bpm = track.bpm else { continue }
-
-            let fileName = track.fileName.replacingOccurrences(of: "&", with: "&amp;")
-                                       .replacingOccurrences(of: "<", with: "&lt;")
-                                       .replacingOccurrences(of: ">", with: "&gt;")
-            let location = "file://localhost" + track.filePath.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
-
-            xml += "    <TRACK TrackID=\"\(track.id)\" Name=\"\(fileName)\" Artist=\"\" "
-            xml += "Composer=\"\" Album=\"\" Grouping=\"\" Genre=\"\" "
-            xml += "Kind=\"MP3 File\" Size=\"0\" TotalTime=\"0\" "
-            xml += "DiscNumber=\"0\" TrackNumber=\"0\" Year=\"0\" "
-            xml += "AverageBpm=\"\(bpm)\" DateAdded=\"\(ISO8601DateFormatter().string(from: Date()))\" "
-            xml += "BitRate=\"0\" SampleRate=\"0\" Comments=\"\" "
-            xml += "PlayCount=\"0\" Rating=\"0\" "
-            xml += "Location=\"\(location)\" "
-            xml += "Tonality=\"\(key)\" "
-            xml += "Label=\"\" Mix=\"\"/>\n"
+    private var exportTracks: [DJExportTrack] {
+        tracks.compactMap { track in
+            guard !track.hasError, let key = track.key, let bpm = Double(track.bpm ?? "") else { return nil }
+            return DJExportTrack(path: track.filePath, name: track.title ?? track.fileName,
+                                 artist: track.artist ?? "", key: key, bpm: bpm, duration: track.duration,
+                                 cues: track.cuePoints.filter { !$0.isSuggested }.map { CueSuggestion(time: $0.timestamp, name: $0.name) },
+                                 firstDownbeat: track.beatGrid?.hasValidGrid == true ? track.beatGrid?.firstDownbeatTime : nil,
+                                 meter: track.timeSignature ?? "4/4")
         }
+    }
 
-        xml += "  </COLLECTION>\n"
-        xml += "</DJ_PLAYLISTS>\n"
-
-        try? xml.write(to: url, atomically: true, encoding: .utf8)
-        return url
+    private func writeExport(_ content: String, to url: URL) -> URL? {
+        do {
+            try content.write(to: url, atomically: true, encoding: .utf8)
+            guard try String(contentsOf: url, encoding: .utf8) == content else {
+                throw NSError(domain: "Export", code: 1, userInfo: [NSLocalizedDescriptionKey: "Export verification failed"])
+            }
+            return url
+        } catch {
+            addLogEntry("Export failed: \(error.localizedDescription)", type: .error)
+            let alert = NSAlert()
+            alert.messageText = "Export could not be saved"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+            return nil
+        }
     }
 
     func exportToSerato() -> URL? {
         // Serato uses ID3 tags, so we'll create a CSV with instructions
         let savePanel = NSSavePanel()
-        savePanel.title = "Export Serato Import CSV"
+        savePanel.title = "Export Serato Reference CSV (not a native import)"
         savePanel.allowedContentTypes = [.commaSeparatedText]
         savePanel.nameFieldStringValue = "serato_keyfinder_export.csv"
 
@@ -868,18 +755,11 @@ class AudioAnalysisModel: ObservableObject {
             return nil
         }
 
-        var csv = "File Path,Key,BPM,Confidence,Camelot,Instructions\n"
-
-        for track in tracks {
-            guard let key = track.key, let bpm = track.bpm, let camelot = track.camelotNotation else { continue }
-
-            let confidence = track.confidenceText
-            let path = track.filePath.path
-            csv += "\"\(path)\",\"\(key)\",\"\(bpm)\",\"\(confidence)\",\"\(camelot)\",\"Use MP3Tag or Kid3 to write key to comments\"\n"
+        let rows = [["File Path", "Key", "BPM", "Camelot", "Notes"]] + tracks.filter { !$0.hasError && $0.key != nil }.map {
+            [$0.filePath.path, $0.key ?? "", $0.bpm ?? "", $0.camelotNotation ?? "",
+             "Reference only: CSV does not import Serato tags or cue points."]
         }
-
-        try? csv.write(to: url, atomically: true, encoding: .utf8)
-        return url
+        return writeExport(DJExport.csv(rows), to: url)
     }
 
     func exportToCSV() -> URL? {
@@ -896,27 +776,16 @@ class AudioAnalysisModel: ObservableObject {
     }
 
     private func generateCSV() -> String {
-        var csv = "Filename,Key,Camelot,BPM,Confidence,File Path\n"
-
-        for track in tracks {
-            let filename = track.fileName.replacingOccurrences(of: ",", with: ";")
-            let key = track.key ?? ""
-            let camelot = track.camelotNotation ?? ""
-            let bpm = track.bpm ?? ""
-            let confidence = track.confidenceText
-            let path = track.filePath.path.replacingOccurrences(of: ",", with: ";")
-
-            csv += "\(filename),\(key),\(camelot),\(bpm),\(confidence),\(path)\n"
-        }
-
-        return csv
+        DJExport.csv([["Filename", "Key", "Camelot", "BPM", "Confidence (algorithm score)", "File Path", "Artist", "Title", "Comment"]] +
+            tracks.filter { !$0.hasError }.map { [$0.fileName, $0.key ?? "", $0.camelotNotation ?? "", $0.bpm ?? "",
+                            $0.confidenceText, $0.filePath.path, $0.artist ?? "", $0.title ?? "", $0.comment ?? ""] })
     }
 
     // MARK: - Traktor NML Export
 
     func exportToTraktor() -> URL? {
         let savePanel = NSSavePanel()
-        savePanel.title = "Export to Traktor Collection"
+        savePanel.title = "Export Traktor NML (import verification pending)"
         savePanel.allowedContentTypes = [UTType.xml]
         savePanel.nameFieldStringValue = "collection_keyfinder.nml"
 
@@ -924,60 +793,7 @@ class AudioAnalysisModel: ObservableObject {
             return nil
         }
 
-        var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        xml += "<NML VERSION=\"19\">\n"
-        xml += "  <COLLECTION>\n"
-        xml += "    <ENTRY \(traktorEntryAttributes())>\n"
-
-        for track in tracks {
-            guard track.key != nil, let bpm = track.bpm else { continue }
-
-            let durationMs = Int(track.duration * 1000)
-            let bpmValue = Double(bpm) ?? 120.0
-
-            xml += "      <TRACK \(traktorTrackAttributes(track: track))>\n"
-            xml += "        <LOCATION \(traktorLocation(track: track))/>\n"
-            xml += "        <INFO BPM=\"\(String(format: "%.2f", bpmValue))\" DUR=\"\(durationMs)\"/>\n"
-            xml += "        <TEMPO \(traktorTempo(track: track))/>\n"
-            xml += "        <CUE \(traktorCue(track: track))/>\n"
-            xml += "      </TRACK>\n"
-        }
-
-        xml += "    </ENTRY>\n"
-        xml += "  </COLLECTION>\n"
-        xml += "</NML>\n"
-
-        try? xml.write(to: url, atomically: true, encoding: .utf8)
-        return url
-    }
-
-    private func traktorEntryAttributes() -> String {
-        let modified = ISO8601DateFormatter().string(from: Date())
-        return "Modified=\"\(modified)\" Visible=\"true\" Filtered=\"false\""
-    }
-
-    private func traktorTrackAttributes(track: TrackAnalysis) -> String {
-        let key = track.key ?? ""
-        let camelot = track.camelotNotation ?? ""
-        let artist = track.artist ?? ""
-        let title = track.title ?? track.fileName
-        return "Title=\"\(escapeXML(title))\" Artist=\"\(escapeXML(artist))\" Album=\"\" Genre=\"\" Comment=\"Key: \(escapeXML(key)) | Camelot: \(escapeXML(camelot))\""
-    }
-
-    private func traktorLocation(track: TrackAnalysis) -> String {
-        let path = track.filePath.deletingLastPathComponent().path
-        let dir = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
-        return "Dir=\"file://localhost/\(dir)/\" File=\"\(track.fileName)\""
-    }
-
-    private func traktorTempo(track: TrackAnalysis) -> String {
-        let bpm = Double(track.bpm ?? "120") ?? 120.0
-        return "Bpm=\"\(String(format: "%.2f", bpm))\" Type=\"0\""
-    }
-
-    private func traktorCue(track: TrackAnalysis) -> String {
-        let key = track.key ?? ""
-        return "Label=\"Key: \(escapeXML(key))\" Start=\"0\""
+        return writeExport(DJExport.traktor(exportTracks), to: url)
     }
 
     // MARK: - Engine DJ Export (JSON)
@@ -1129,61 +945,15 @@ class AudioAnalysisModel: ObservableObject {
         return url
     }
 
-    // MARK: - Direct Tag Writing
-
-    func writeTagsToFiles() -> URL? {
-        // For tag writing, we need to select files first
-        let openPanel = NSOpenPanel()
-        openPanel.title = "Select Audio Files to Write Tags"
-        openPanel.allowsMultipleSelection = true
-        openPanel.canChooseDirectories = false
-        openPanel.allowedContentTypes = [.mp3, .mpeg4Audio, .wav, .aiff]
-
-        guard openPanel.runModal() == .OK, !openPanel.urls.isEmpty else {
-            return nil
-        }
-
-        var successCount = 0
-        var failedFiles: [String] = []
-
-        for url in openPanel.urls {
-            do {
-                try writeTagsToFile(at: url)
-                successCount += 1
-            } catch {
-                failedFiles.append(url.lastPathComponent)
-            }
-        }
-
-        // Create result file
-        let resultURL = FileManager.default.temporaryDirectory.appendingPathComponent("keyfinder_tag_write_result.txt")
-        var resultText = "Tag Writing Results\n"
-        resultText += "==================\n"
-        resultText += "Successfully wrote tags to \(successCount) files.\n"
-
-        if !failedFiles.isEmpty {
-            resultText += "\nFailed files:\n"
-            for file in failedFiles {
-                resultText += "  - \(file)\n"
-            }
-        }
-
-        try? resultText.write(to: resultURL, atomically: true, encoding: .utf8)
-        return resultURL
-    }
-
-    private func writeTagsToFile(at url: URL) throws {
-        // Tag writing requires more complex handling - for now, just log what would be written
-        // Find matching track from our analysis
-        let matchingTrack = tracks.first { $0.filePath == url }
-
-        if let track = matchingTrack {
-            // Log what would be written
-            print("Would write tags to: \(url.lastPathComponent)")
-            print("  Key: \(track.key ?? "unknown")")
-            print("  BPM: \(track.bpm ?? "unknown")")
-            print("  Camelot: \(track.camelotNotation ?? "unknown")")
-        }
+    // Metadata edits live in the crate. Audio tag writes are not implemented.
+    // A reference plan must never be reported as a successful audio-file write.
+    func exportMetadataPlan() -> URL? {
+        let panel = NSSavePanel()
+        panel.title = "Export Metadata Plan (audio files unchanged)"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "keyfinder_metadata_plan.csv"
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        return writeExport(generateCSV(), to: url)
     }
 
     // MARK: - Helper Functions

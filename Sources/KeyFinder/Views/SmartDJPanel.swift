@@ -1,41 +1,49 @@
 import SwiftUI
+import KeyFinderEngine
 
 /// Panel for Smart DJ features: harmonic mix generation and playlist management
 struct SmartDJPanel: View {
     @ObservedObject var model: AudioAnalysisModel
     @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.dismiss) private var dismiss
     @State private var maxTracks: Int = 20
     @State private var selectedStartKey: String? = nil
+    /// Shown as the MIX tab rather than a sheet: no close button.
+    var embedded = false
 
     private let camelotKeys = (1...12).flatMap { num in ["\(num)A", "\(num)B"] }
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            HStack {
-                Text("SMART DJ - HARMONIC MIX")
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+            HStack(alignment: .firstTextBaseline) {
+                Text("Mix")
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(themeManager.textColor)
+                KF.label("Harmonic set from your library", size: 9)
+                    .foregroundColor(themeManager.tertiaryTextColor)
+                    .padding(.leading, 10)
 
                 Spacer()
 
-                Button(action: {
-                    // Close the sheet
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(themeManager.tertiaryTextColor)
+                if !embedded {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(themeManager.tertiaryTextColor)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
-            .padding(20)
-            .background(themeManager.surfaceColor)
-
-            Divider()
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+            .padding(.bottom, 8)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     // Mix Settings
-                    GroupBox {
+                    VStack(alignment: .leading, spacing: 0) {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("MIX SETTINGS")
                                 .font(.system(size: 10, weight: .medium, design: .monospaced))
@@ -60,7 +68,7 @@ struct SmartDJPanel: View {
                                     .foregroundColor(themeManager.secondaryTextColor)
 
                                 Picker("", selection: $selectedStartKey) {
-                                    Text("Random").tag(nil as String?)
+                                    Text("First in crate").tag(nil as String?)
                                     ForEach(camelotKeys, id: \.self) { key in
                                         Text(key).tag(key as String?)
                                     }
@@ -69,6 +77,11 @@ struct SmartDJPanel: View {
                                 .frame(width: 100)
                             }
 
+                            Picker("Energy direction", selection: $model.mixDirection) {
+                                ForEach(EnergyDirection.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                            }
+                            Text("Only compatible keys within 8% tempo difference. Energy is an RMS estimate; audition transitions.")
+                                .font(.caption).foregroundColor(themeManager.secondaryTextColor)
                             Button(action: {
                                 model.generateHarmonicMix(maxTracks: maxTracks, startWithKey: selectedStartKey)
                             }) {
@@ -77,7 +90,7 @@ struct SmartDJPanel: View {
                                     Text("GENERATE MIX")
                                 }
                                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundColor(.white)
+                                .foregroundColor(themeManager.textOnAccentColor)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
                                 .background(themeManager.accentColor)
@@ -87,10 +100,11 @@ struct SmartDJPanel: View {
                         }
                         .padding(12)
                     }
+                    .kfCard()
 
                     // Generated Mix Playlist
                     if !model.generatedMixPlaylist.isEmpty {
-                        GroupBox {
+                        VStack(alignment: .leading, spacing: 0) {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack {
                                     Text("GENERATED MIX PLAYLIST")
@@ -154,6 +168,9 @@ struct SmartDJPanel: View {
                                                         .foregroundColor(themeManager.tertiaryTextColor)
                                                 }
                                             }
+                                            Text(model.mixReasons[track.id] ?? "")
+                                                .font(.caption)
+                                                .foregroundColor(themeManager.secondaryTextColor)
                                         }
 
                                         Spacer()
@@ -174,6 +191,7 @@ struct SmartDJPanel: View {
                             }
                             .padding(12)
                         }
+                        .kfCard()
                     }
 
                     // Info text
@@ -181,14 +199,15 @@ struct SmartDJPanel: View {
                         Text("Click 'Generate Mix' to create a harmonically mixed playlist from your analyzed tracks. The algorithm will arrange tracks that are harmonically compatible for smooth transitions.")
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundColor(themeManager.tertiaryTextColor)
-                            .padding()
-                            .background(themeManager.surfaceColor)
-                            .cornerRadius(4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .kfCard(padding: 16)
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
             }
         }
         .background(themeManager.backgroundColor)
+        .onExitCommand { dismiss() }
     }
 }

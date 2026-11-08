@@ -1,0 +1,89 @@
+# Free key datasets and independent validation
+
+Research date: 2026-10-11. Scope: brief #0003, data research only. All recommendations below are additions by Codex.
+
+## Outcome
+
+**Recommended no-cost public route:** use the official **GiantSteps+ v2** release as a separate, reproducible EDM challenge benchmark. Matching audio and richer human annotations are available without an account; one archive member was retrieved and decoded successfully during this investigation. Keep it separate from the original 604-track GiantSteps benchmark. Use **newly human-reviewed local song families** for the final product validation; the current 12-song pilot is development evidence only.
+
+The anchor constraint is **independent labels tied to exact recordings, with a frozen split**. Acquiring thousands of estimated database labels does not solve that constraint. Tunebat is not a verified free training-data export, and MTG songs are unsuitable as an untouched test of models trained on MTG.
+
+Status vocabulary: **Confirmed from workspace** means inspected current local artifacts; **Confirmed from primary source** means official documentation or direct retrieval; **Reasonable inference** means the recommendation drawn from that evidence; **Missing / needs verification** identifies a remaining limitation. No vault notes were needed.
+
+## Current local evidence
+
+**Confirmed from workspace:** `docs/briefs/0003-free-key-benchmark/brief.md` restricts this phase to benchmark tooling and research. `dist/mik-key-analysis/updated/report.md` reports 542 catalog audio files, 420 candidate masters after basename/format grouping, and 12 successful analyses. It explicitly marks filename agreement as provisional, and says song-family grouping remains unfinished. `manifest.json` carries mixed human/detector provenance; `verification.json` records unchanged source hashes. These are inspected historical run artifacts, not a newly executed catalog benchmark.
+
+**Reasonable inference:** none of those 12 already inspected songs, or their related versions, should be presented as an untouched final test. A candidate-master count is not a unique-song count. No verified local ground truth was established in this investigation.
+
+## Dataset comparison
+
+| Source | Annotation provenance and scope | Matching audio | Rights and practical use |
+| --- | --- | --- | --- |
+| Original GiantSteps Key | 604 mostly two-minute EDM previews; annotations derived from human corrections. Preserve original labels for historical comparisons. | GitHub contains annotations, hashes and acquisition scripts, rather than a bundled audio collection. The documented sample endpoint tested here is dead. | No root license appeared in the inspected repository listing. Do not substitute a third-party mirror's license for an upstream grant. |
+| GiantSteps+ v2 | Revision of the original collection: 600 excerpts with keys, modal/key changes, comments and confidence. Deliberately emphasizes problematic Beatport excerpts. | Official Zenodo `audio.zip` and `annotations.zip`; one matching pair verified below. | Official record metadata declares CC BY-SA 4.0. Best immediate public challenge route; not a new independent song collection. |
+| GiantSteps-MTG / Beatport EDM Key | 1,486 excerpts in the official Beatport release; papers select 1,077 single-key, high-confidence items. | Official Zenodo lists a 2.1 GB audio archive, labels and spreadsheets; GitHub also has annotations/scripts. Full archive not retrieved here. | Official record declares CC BY-SA 4.0. Possible future development/training source, subject to matching/version checks; known training exposure for related CNNs. |
+| FMAK | 5,489 expert/manual song-level key/mode annotations across 17 genres, indexed by FMA track ID. | Official Zenodo bundles audio in roughly 39.3 GB of archives. Small CSV verified; no FMAK recording decoded here. | Annotation record declares CC BY 4.0; recordings retain each artist's license. Strong later genre-diversity route after item-level rights filtering. |
+| Isophonics | Human key-region annotations, with explicit quality cautions and potentially incomplete Beatles modulations. | Requires corresponding original CD recordings; annotation download does not supply those recordings. | Useful if Alexander already owns matching audio; not a ready free audio corpus. Annotation reuse terms need checking before redistribution. |
+| McGill Billboard v2 | Expert chord/structure annotations and opening tonic; not a directly human-labeled 24-key dataset. | Original audio explicitly unavailable for redistribution; features are available. | Annotations are CC0. Deriving major/minor from chord counts is an inferred label and must retain that provenance. |
+| Ibrahim Shaath KeyFinder v2 database | Public key-reference PDF/ODS for a separate historical detector project. | Database links do not establish availability of corresponding recordings. | Software GPL licensing is not a grant for reference recordings or the annotation database. Secondary reference only until provenance/rights and audio matches are resolved. |
+
+Primary sources: [original GiantSteps repository](https://github.com/GiantSteps/giantsteps-key-dataset), [GiantSteps+ v2](https://zenodo.org/records/4153506), [MTG repository](https://github.com/GiantSteps/giantsteps-mtg-key-dataset), [Beatport/MTG release](https://zenodo.org/records/1101082), [FMAK release](https://zenodo.org/records/10719860), [FMAK authors' repository](https://github.com/stellaywong/fma_keys), [Isophonics annotation documentation](https://isophonics.net/content/reference-annotations.html), [McGill Billboard release](https://ddmal.ca/research/The_McGill_Billboard_Project_%28Chord_Analysis_Dataset%29/), [historical KeyFinder database links](https://www.ibrahimshaath.co.uk/keyfinder/).
+
+### Version and label distinctions that matter
+
+**Confirmed from primary sources:** GiantSteps+ is a revised, biased robustness set, not 600 additional independent recordings. The older [GiantSteps+ release](https://zenodo.org/records/1095691) and v2 list the same audio archive MD5; v2 adds JSON annotations. Do not silently compare a revised-label score with a published original-label score. The [2017 CNN paper](https://www.eurasip.org/Proceedings/Eusipco/Eusipco2017/papers/1570347645.pdf) distinguishes 1,486 MTG recordings from its selected 1,077 training items. Save full-corpus and selected-subset counts separately.
+
+**Missing / needs verification:** the precise numeric confidence rubric and complete original-GiantSteps/MTG/Zenodo ID correspondence were not audited. Retain raw confidence values, and do not invent a threshold. Modal, ambiguous, multi-key and no-key items need explicit policies; forcing every annotation into a single major/minor class discards evidence.
+
+## Small acquisition checks performed
+
+Only small official metadata/annotation files and **one audio recording** were retrieved. No bulk audio download, account, signup, payment, catalog upload, or new dependency installation occurred.
+
+1. Direct official Zenodo API metadata for records `1095691`, `4153506`, `1101082` and `10719860` returned open access and licenses `cc-by-sa-4.0`, `cc-by-sa-4.0`, `cc-by-sa-4.0` and `cc-by-4.0`, respectively. These fields were checked directly because the browser text renderer omitted the license names. Reproducible endpoints: `https://zenodo.org/api/records/<record-id>`.
+2. The original README's documented sample, `https://geo-samples.beatport.com/lofi/5377710.LOFI.mp3`, returned **HTTP 404**. This proves failure for one legacy endpoint, not disappearance of the whole collection.
+3. Ordinary HTTP range requests against [GiantSteps+ v2 audio.zip](https://zenodo.org/records/4153506/files/audio.zip?download=1) returned partial content. ZIP inspection found **600 MP3 members**. Retrieval was bounded to one recording and ZIP metadata: **1,509,203 archive bytes read**, instead of the 855,761,126-byte archive. ZIP CRC verification passed for the selected member.
+4. Member: `audio/3271514 Mario & Vidis - Suspend The Feeling feat. Giedre (Original Mix).mp3`; size **1,441,018 bytes**; SHA-256 **c30b369d15a21eda41c1a3a71397d28100d05f721992725946edb7fb3e5d78d7**. Temporary sample: `/private/tmp/keyfinder-dataset-sample.mp3`. `afinfo` identified stereo MP3 at 44,100 Hz, estimated duration **120.058776 s**. Existing FFmpeg **8.1**, `ffmpeg -v error -i <sample> -f null -`, decoded to completion with exit 0 and no errors. An initial `afconvert` conversion attempt failed with `ExtAudioFileSetProperty ('cfmt') ... ('fmt?')`; this is recorded, not counted as a successful conversion.
+5. [annotations.zip](https://zenodo.org/records/4153506/files/annotations.zip?download=1): **408,580 bytes**, MD5 **603183d92916313c97dae51edac7655f**, matching the official record; **600 JSON annotations**. Matching `new_annotations/3271514.json` specifies `A minor aeolian`, raw confidence `2`, interval 0–120 s, and a comment about an E-flat vocal grace note. This establishes an audio/annotation ID match, not an independent re-annotation by this agent. Preserve the raw modal string alongside any explicit `A Minor` normalization.
+6. [FMAK label CSV](https://zenodo.org/records/10719860/files/fma_keys_metadata.csv?download=1): **273,309 bytes**, MD5 **d80a03bc8659edc60e335bd7f6bdf12a**, matching official metadata; observed columns `track_id,spotify_uri,key_and_mode`. A Spotify URI is a correspondence field, not proof of Spotify-derived ground truth. The authors describe these labels as manual/expert annotations.
+
+**Limitations:** no full-archive MD5 check, full-dataset decode, annotation consistency audit, local KeyFinder score, or listening-based key adjudication was performed. One working sample proves that a bounded usable acquisition route exists; it does not prove all recordings work. A direct sandboxed network attempt failed DNS resolution; the subsequent approved read-only network check succeeded.
+
+## Tunebat: what is actually documented
+
+**Confirmed from primary source:** the [current homepage](https://tunebat.com/) says its music database is powered by Spotify Web API, while its analyzer uses Essentia.js/Essentia models. These are separate sources of estimates. The [current API page](https://tunebat.com/api/) directs developers to partner **Songstats** and lists tempo/audio analysis among available categories; it does not document a free bulk key-label export or a training-data license. **Missing / needs verification:** key-field coverage, free access, recording-specific matches and dataset reuse permission were not established.
+
+The linked [Tunebat terms PDF](https://tunebat.com/documents/tunebat-terms-of-service-new.pdf), marked updated 2023-03-14, forbids automated robots/crawlers/scrapers in section IX.a.ix and denies implied content-use licenses in VI.d. No scraping was performed. **Recommendation:** exclude Tunebat acquisition from this no-cost benchmark route. If a person separately records a permitted lookup, retain it as a provisional third-party estimate, never promote it to a human reference label. Do not upload local audio to its analyzer.
+
+## Licenses: separate the things being licensed
+
+**Confirmed:** [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) allows commercial use under its conditions; it is not a noncommercial license. Attribution and ShareAlike obligations apply to relevant reuse/adaptations. An official dataset license declaration is stronger evidence than a reachable download URL, but does not independently establish the depositor's rights to every underlying commercial recording. The Beatport releases identify Beatport as the audio source. Keep acquisition/version/terms evidence, and keep recordings out of Git and app bundles.
+
+**Missing / needs verification:** model-weight licensing is distinct from data licensing and code licensing. Whether a particular trained output legally constitutes adapted material is not established here; do not assume either that all weights inherit ShareAlike or that training automatically removes obligations. Review the actual planned release before distributing weights or audio derivatives.
+
+For example, [madmom's official license](https://github.com/CPJKU/madmom/blob/master/LICENSE) separates BSD source code from **CC BY-NC-SA 4.0 model/data files** and explicitly requests contact for commercial-product use of those files or technology utilizing them. A free local reference run does not establish permission to bundle its weights, distill them into a released model, or use them commercially. [CC BY-NC-SA conditions](https://creativecommons.org/licenses/by-nc-sa/4.0/) remain distinct from the Beatport datasets' BY-SA declaration. FMAK's annotation license similarly does not overwrite per-recording FMA audio licenses.
+
+## Splits and pretrained-model leakage
+
+**Recommended policy:** create groups before drawing partitions. Group all encodings, crops, remasters, numbered versions, stems, instrumental/vocal variants and pitch/time augmentations of the same song. Check SHA-256, source track IDs, title/artist metadata and, when available locally, acoustic similarity. Exact hashes alone miss transcoded duplicates. Group remixes/shared stems when they retain substantial harmonic/audio material; uncertain family links belong in review, not across splits.
+
+For a multi-artist public corpus, keep artists—and featured-artist collaborations where practical—on one side of the split. Save a deterministic assignment manifest with seed, family IDs, artist IDs and selection/exclusion reasons. This reduces learning artist/production cues instead of general key recognition. Train/tune only on development partitions; generate augmentations after grouping. Report both the source-canonical score and any curated subset, with explicit denominators.
+
+**Important local limitation:** Alexander's catalog primarily represents one artist. A song-family holdout can measure generalization to unseen IFEELVOID songs, but cannot establish generalization to unseen artists. Do not manufacture an artist split within that catalog; validate artist generalization separately on an external grouped corpus.
+
+**Confirmed:** the [2018 genre-agnostic CNN paper](https://ismir2018.ismir.net/doc/pdfs/7_Paper.pdf) uses 1,077 selected MTG songs split 80/20 for training/validation, original GiantSteps for testing, plus Billboard and an internal classical corpus. [madmom's current key implementation](https://github.com/CPJKU/madmom/blob/main/madmom/features/key.py) cites that 2018 work. **Reasonable inference:** presume MTG exposure for associated pretrained weights until the exact model's training manifest proves otherwise; MTG scores are not independent held-out evidence for them. GiantSteps+ relabels related audio, so new annotations do not create unseen recordings.
+
+For every pretrained candidate, pin code/model revisions and hashes, record documented training corpora and unknown provenance, and check cross-dataset overlap. An opaque training set means exposure is unknown. A benchmark used repeatedly for model selection also ceases to be a fresh final test. Original GiantSteps remains useful for historical comparison, but gains on it should be confirmed on newly reserved local families. Algorithmic reference agreement is useful for triage and cannot certify key accuracy.
+
+## Execution recommendation
+
+1. **First executable step:** build a review manifest from the existing local inventory, identify song families, mark all previously analyzed families as development, and reserve unseen families before displaying detector predictions. Preserve source hashes and filenames; store labels in a sidecar.
+2. Aim for an initial **40–60 newly reviewed held-out song families**, if available, with representative major/minor, sparse/bass-heavy and harmonically ambiguous material. This is a proposed pilot size, not a statistical guarantee or a requirement to force every key class into a tiny set.
+3. Human reviewer listens without filename-key hints or algorithm output, uses tonic/bass/cadence and major/minor evidence, and records key, timestamp scope, confidence, alternatives and ambiguity. Existing composition/MIDI notes can corroborate but do not override the actual rendered master. If a second knowledgeable reviewer is available, review independently and adjudicate differences before revealing predictions. With one reviewer, state that limitation and re-review a random sample.
+4. Freeze labels and partition before comparing candidates. Keep unresolved, non-tonal, modal and changing-key cases visible in a separate challenge table; do not relabel disagreements to fit a detector. Exact tonic/mode success, related-key errors, abstentions, decode failures and coverage need separate reporting. Use identical frozen files and preprocessing across candidates.
+5. Add a separately named `giantsteps_plus_v2` challenge manifest using the verified official route; retain raw annotations and source version, match IDs, and log every acquisition/decode failure. Test a small bounded subset before deciding on a full archive. Never mix the 604-original and 600-revised label generations in one score.
+6. Consider FMAK later for wider genre/artist validation and potential training only after filtering audio licenses and checking actual recording availability. MTG is a possible development source, not the final test of MTG-trained references. No public result supports “best,” “Mixed In Key parity,” or measured local accuracy yet.
+
+## Project / vault updates
+
+Only this `datasets.md` report is owned by this research chat. Detector code, source audio, other researchers' files and the ledger were left to their owners. Link this report from the #0003 ledger and carry the frozen-label gate into the benchmark handoff. No vault structural changes or durable-memory saves are proposed.

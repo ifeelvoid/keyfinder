@@ -4,6 +4,21 @@ import Accelerate
 /// BeatGridDetector - Detects beat positions, phase, and downbeats for DJ use
 /// Uses spectral flux for onset detection and autocorrelation for beat tracking
 public class BeatGridDetector {
+    public init() {}
+
+    public enum AnalysisError: Error, LocalizedError {
+        case invalidSampleRate, invalidSamples, insufficientAudio, invalidTempo, noRhythmicEvidence
+
+        public var errorDescription: String? {
+            switch self {
+            case .invalidSampleRate: return "Beat-grid analysis requires a finite sample rate between 4 and 192 kHz."
+            case .invalidSamples: return "Beat-grid analysis requires finite audio samples."
+            case .insufficientAudio: return "Beat-grid analysis requires at least 3072 audio samples."
+            case .invalidTempo: return "Beat-grid analysis requires a finite tempo between 1 and 1000 BPM."
+            case .noRhythmicEvidence: return "No usable rhythmic evidence was found in this audio."
+            }
+        }
+    }
 
     // MARK: - Types
 
@@ -57,7 +72,8 @@ public class BeatGridDetector {
 
         /// Get the current phase (0.0-1.0) at a given time position
         public func phase(at time: TimeInterval) -> Double {
-            guard !beats.isEmpty, let firstDownbeat = beats.first(where: { $0.isDownbeat }) else {
+            guard time.isFinite, bpm.isFinite, bpm > 0,
+                  !beats.isEmpty, let firstDownbeat = beats.first(where: { $0.isDownbeat }) else {
                 return 0.0
             }
 
@@ -65,17 +81,20 @@ public class BeatGridDetector {
             let timeSinceDownbeat = time - firstDownbeat.time
             let beatsSinceDownbeat = timeSinceDownbeat / beatDuration
 
-            return beatsSinceDownbeat.truncatingRemainder(dividingBy: 1.0)
+            let phase = beatsSinceDownbeat.truncatingRemainder(dividingBy: 1.0)
+            return phase < 0 ? phase + 1 : phase
         }
 
         /// Get the time until the next downbeat
         public func timeToNextDownbeat(from time: TimeInterval) -> TimeInterval {
+            guard time.isFinite, firstDownbeatTime.isFinite, bpm.isFinite, bpm > 0 else { return 0 }
+            if time < firstDownbeatTime { return firstDownbeatTime - time }
             let barDuration = (60.0 / bpm) * Double(beatsPerBar)
             let timeSinceFirstDownbeat = time - firstDownbeatTime
             let barsSinceDownbeat = timeSinceFirstDownbeat / barDuration
 
-            let currentBar = Int(barsSinceDownbeat)
-            let nextDownbeatTime = firstDownbeatTime + Double(currentBar + 1) * barDuration
+            let currentBar = floor(barsSinceDownbeat)
+            let nextDownbeatTime = firstDownbeatTime + (currentBar + 1) * barDuration
 
             return nextDownbeatTime - time
         }
@@ -104,11 +123,21 @@ public class BeatGridDetector {
 
     /// Detect the complete beat grid for an audio file
     public func detectBeatGrid(audioSamples: [Float], sampleRate: Double, detectedBPM: Double? = nil) async throws -> AnalysisOutput {
+        try Task.checkCancellation()
+        guard sampleRate.isFinite, (4000...192000).contains(sampleRate) else { throw AnalysisError.invalidSampleRate }
+        guard audioSamples.count >= fftSize + 2 * hopSize else { throw AnalysisError.insufficientAudio }
+        guard audioSamples.allSatisfy({ $0.isFinite }) else { throw AnalysisError.invalidSamples }
+        if let detectedBPM {
+            guard detectedBPM.isFinite, (1...1000).contains(detectedBPM) else { throw AnalysisError.invalidTempo }
+        }
         // Step 1: Calculate onset strength using spectral flux
         let onsetStrength = calculateOnsetStrength(samples: audioSamples, sampleRate: sampleRate)
+        try Task.checkCancellation()
+        guard onsetStrength.contains(where: { $0 > 0 }) else { throw AnalysisError.noRhythmicEvidence }
 
         // Step 2: Get BPM (use provided or detect)
         let bpm = detectedBPM ?? detectBPMFromOnsets(onsetStrength: onsetStrength, sampleRate: sampleRate)
+        guard bpm.isFinite, bpm > 0 else { throw AnalysisError.noRhythmicEvidence }
 
         // Step 3: Detect beats using adaptive threshold
         let beatTimes = detectBeatPositions(onsetStrength: onsetStrength, sampleRate: sampleRate, bpm: bpm)
@@ -160,7 +189,7 @@ public class BeatGridDetector {
         var onsetStrength = [Float]()
         var previousSpectrum = [Float](repeating: 0.0, count: fftSize / 2)
 
-        for frameStart in stride(from: 0, to: samples.count - fftSize, by: hopSize) {
+        for frameStart in stride(from: 0, through: samples.count - fftSize, by: hopSize) {
             let frameEnd = min(frameStart + fftSize, samples.count)
             let frame = Array(samples[frameStart..<frameEnd])
 
@@ -233,11 +262,12 @@ public class BeatGridDetector {
         let framesPerSecond = sampleRate / Double(hopSize)
 
         // Calculate onset autocorrelation (tempogram)
-        let tempogram = calculateAutocorrelation(onsetStrength)
+        let tempogram = calculateAutocorrelation(onsetStrength, maxLag: Int(framesPerSecond) + 1)
 
         // Find peaks in the BPM range
         let minLag = Int(60.0 / maxBPM * framesPerSecond)
         let maxLag = min(Int(60.0 / minBPM * framesPerSecond), tempogram.count - 1)
+        guard minLag <= maxLag else { return 0 }
 
         var maxPeak: Float = 0.0
         var maxPeakLag = minLag
@@ -260,16 +290,19 @@ public class BeatGridDetector {
     }
 
     /// Calculate autocorrelation of onset signal
-    private func calculateAutocorrelation(_ signal: [Float]) -> [Float] {
+    private func calculateAutocorrelation(_ signal: [Float], maxLag: Int) -> [Float] {
         let n = signal.count
-        var autocorrelation = [Float](repeating: 0.0, count: n)
+        guard n > 0 else { return [] }
+        let lastLag = min(n - 1, maxLag)
+        var autocorrelation = [Float](repeating: 0.0, count: lastLag + 1)
 
         // Use Accelerate for faster computation
         var sum: Float = 0.0
         vDSP_dotpr(signal, 1, signal, 1, &sum, vDSP_Length(n))
         autocorrelation[0] = sum
 
-        for lag in 1..<min(n, 10000) { // Limit lag for performance
+        guard lastLag > 0 else { return autocorrelation }
+        for lag in 1...lastLag {
             var lagSum: Float = 0.0
             let count = vDSP_Length(n - lag)
             vDSP_dotpr(signal, 1, Array(signal[lag..<n]), 1, &lagSum, count)
@@ -364,23 +397,12 @@ public class BeatGridDetector {
 
         // Assign beat numbers
         let beatDuration = 60.0 / bpm
-        _ = beatDuration // Used for beat number calculation below
-
         for (index, beatTime) in beatTimes.enumerated() {
-            let isDownbeat: Bool
-            let beatNum: Int
-
-            if index == 0 {
-                // First detected beat - treat as potential downbeat
-                isDownbeat = true
-                beatNum = 1
-            } else {
-                // Calculate beat number based on time from first downbeat
-                let timeSinceFirst = beatTime - firstDownbeatEstimate
-                let beatsFromFirst = Int(round(timeSinceFirst / beatDuration))
-                beatNum = ((beatsFromFirst % beatsPerBar) + beatsPerBar + 1) % beatsPerBar + 1
-                isDownbeat = (beatNum == 1)
-            }
+            // Pickup beats precede the measured downbeat; normalize negative offsets.
+            let timeSinceFirst = beatTime - firstDownbeatEstimate
+            let beatsFromFirst = Int(round(timeSinceFirst / beatDuration))
+            let beatNum = ((beatsFromFirst % beatsPerBar) + beatsPerBar) % beatsPerBar + 1
+            let isDownbeat = (beatNum == 1)
 
             let strength = index < beatStrengths.count ? beatStrengths[index] : 0.5
 
@@ -552,6 +574,7 @@ public class BeatGridDetector {
 
     /// Get onset times for visualization
     private func getOnsetTimes(onsetStrength: [Float], sampleRate: Double) -> [TimeInterval] {
+        guard onsetStrength.count >= 3 else { return [] }
         let framesPerSecond = sampleRate / Double(hopSize)
         var onsetTimes: [TimeInterval] = []
 

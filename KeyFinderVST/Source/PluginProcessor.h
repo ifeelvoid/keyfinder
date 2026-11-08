@@ -4,6 +4,7 @@
 #include "KeyDetector.h"
 #include "BPMDetector.h"
 
+// Audio-effect analyzer: passes audio through unchanged and analyzes it off the audio thread.
 class KeyFinderAudioProcessor : public juce::AudioProcessor
 {
 public:
@@ -36,44 +37,87 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    // Analysis methods
-    void startAnalysis();
-    bool isAnalyzing() const { return analyzing; }
-    bool hasResults() const { return analysisComplete; }
-    bool isFileLoaded() const { return !loadedFilePath.isEmpty(); }
-    juce::String getLoadedFilePath() const { return loadedFilePath; }
+    // LIVE works like a tuner: it always listens to the track's audio, gives a first read after
+    // liveStepSeconds of sound, then re-reads the latest liveWindowSeconds every step.
+    // Silent blocks (stopped transport) are skipped, so the last read stays on screen.
+    static constexpr double liveStepSeconds = 5.0;
+    static constexpr double liveWindowSeconds = 30.0;
+    /// Forget what was heard and start a fresh read.
+    void resetLiveRead();
+    void setHeld (bool shouldHold) { held = shouldHold; }
+    bool isHeld() const { return held; }
+    /// Seconds of audible track audio in the current read (at most liveWindowSeconds).
+    double getCapturedSeconds() const;
+    /// True when audible audio arrived within the last second.
+    bool isHearingAudio() const;
 
-    juce::String getDetectedKey() const { return detectedKey; }
-    juce::String getCamelotNotation() const { return camelotNotation; }
-    double getDetectedBPM() const { return detectedBPM; }
+    // Key style (template set / method), saved with the host session. Applies to the next read.
+    void setKeyStyle (KeyDetector::Style style) { keyStyle = int (style); }
+    KeyDetector::Style getKeyStyle() const { return KeyDetector::Style (keyStyle.load()); }
 
-    // File analysis
-    void loadAndAnalyzeFile(const juce::File& file);
+    void loadAndAnalyzeFile (const juce::File& file);
     bool isFileAnalyzing() const { return fileAnalyzing; }
 
-    // Export methods
-    void exportToRekordboxXML(const juce::File& file);
-    void exportToSeratoCSV(const juce::File& file);
-    void exportToTraktorNML(const juce::File& file);
+
+    enum class AnalysisSource { Live, File };
+    enum class AnalysisStatus { Idle, Queued, Capturing, Analyzing, Complete, Error };
+    struct AnalysisSnapshot
+    {
+        AnalysisSource source = AnalysisSource::Live;
+        AnalysisStatus status = AnalysisStatus::Idle;
+        juce::String key, camelot, error, filePath;
+        double bpm = 0.0;
+        std::array<double, 12> pitchEnergy {};
+        bool complete() const { return status == AnalysisStatus::Complete; }
+    };
+
+    // UI reads one coherent source-specific snapshot, including pending/error state.
+    AnalysisSnapshot getAnalysisSnapshot (AnalysisSource source) const;
+    // Compatibility accessors refer to the most recently requested source.
+    bool hasResults() const;
+    bool isFileLoaded() const;
+    juce::String getLoadedFilePath() const;
+    juce::String getDetectedKey() const;
+    juce::String getCamelotNotation() const;
+    double getDetectedBPM() const;
+    juce::String getLastError() const;
 
 private:
-    std::unique_ptr<KeyDetector> keyDetector;
-    std::unique_ptr<BPMDetector> bpmDetector;
+    void analyze (std::vector<float> mono22050, AnalysisSource source);
+    void setError (AnalysisSource source, const juce::String& message);
+    void beginAnalysis (AnalysisSource source, AnalysisStatus status, const juce::String& path = {});
+    AnalysisSnapshot latestSnapshot() const;
+    AnalysisSnapshot& snapshotFor (AnalysisSource source);
+    void deactivateRingAndWait();
 
-    std::vector<float> audioBuffer;
-    std::atomic<bool> analyzing{false};
-    std::atomic<bool> analysisComplete{false};
-    std::atomic<bool> fileAnalyzing{false};
+    void runLiveLoop();
+    void analyzeLiveWindow();
 
-    juce::String loadedFilePath;
+    std::atomic<int> keyStyle { int (KeyDetector::defaultStyle) };
+    BPMDetector bpmDetector;
+    // Thread 1 runs the live loop for the processor's lifetime; thread 2 decodes dropped files.
+    juce::ThreadPool worker { 2 };
+    std::atomic<bool> shuttingDown { false };
+    std::atomic<bool> fileAnalyzing { false };
+    std::atomic<bool> held { false };
 
-    juce::String detectedKey;
-    juce::String camelotNotation;
-    double detectedBPM = 0.0;
+    // Ring of audible mono audio at the host rate, (re)allocated in prepareToPlay only.
+    // The audio thread writes without locks; readers copy at most liveWindowSeconds while
+    // the ring holds two extra seconds, so the copied region is never being overwritten.
+    std::vector<float> ring;
+    std::atomic<bool> ringActive { false };
+    std::atomic<double> ringRate { 0.0 };
+    std::atomic<juce::int64> writePos { 0 };      // audible samples written since prepare
+    std::atomic<juce::int64> windowStart { 0 };   // writePos at the last reset
+    std::atomic<juce::int64> lastAnalyzedPos { 0 };
+    std::atomic<juce::uint32> lastAudioMs { 0 };
+    std::atomic<unsigned> captureWriters { 0 };
+    std::atomic<unsigned> ringReaders { 0 };
 
-    double currentSampleRate = 44100.0;
-    int bufferPosition = 0;
-    static constexpr int maxBufferSize = 44100 * 30; // 30 seconds max
+    mutable juce::CriticalSection resultLock;
+    AnalysisSnapshot liveResult;
+    AnalysisSnapshot fileResult { AnalysisSource::File };
+    AnalysisSource latestSource = AnalysisSource::Live;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (KeyFinderAudioProcessor)
 };

@@ -1,123 +1,82 @@
 import SwiftUI
 
+/// Camelot wheel: outer ring B (major), inner ring A (minor). The selected key is filled,
+/// harmonic moves from it are outlined in their Camelot hue, and keys present in the
+/// library read brighter than empty ones.
 struct CamelotWheelView: View {
-    let tracks: [TrackAnalysis]
-    @Binding var selectedTrack: TrackAnalysis?
-    @EnvironmentObject var themeManager: ThemeManager
-
-    // Camelot wheel positions (12 positions, inner = minor, outer = major)
-    private let camelotPositions: [String] = [
-        "12B", "1B", "2B", "3B", "4B", "5B", "6B", "7B", "8B", "9B", "10B", "11B",
-        "12A", "1A", "2A", "3A", "4A", "5A", "6A", "7A", "8A", "9A", "10A", "11A"
-    ]
+    let selected: String?
+    let compatible: Set<String>
+    let counts: [String: Int]
+    var centerKey: String? = nil
+    @EnvironmentObject var theme: ThemeManager
 
     var body: some View {
         GeometryReader { geometry in
+            let size = min(geometry.size.width, geometry.size.height)
+            let badge = min(34, max(24, size * 0.1))
+            let outer = size / 2 - badge / 2 - 2
+            let inner = outer - badge * 1.25
             let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-            let radius = min(geometry.size.width, geometry.size.height) / 2 - 40
 
             ZStack {
-                // Background circle
                 Circle()
-                    .stroke(themeManager.borderColor, lineWidth: 1)
-                    .frame(width: radius * 2, height: radius * 2)
-
-                // Inner circle (minor keys)
-                Circle()
-                    .stroke(themeManager.borderColor, lineWidth: 1)
-                    .frame(width: radius * 1.3, height: radius * 1.3)
-
-                // Draw all positions
-                ForEach(0..<24, id: \.self) { index in
-                    let camelot = camelotPositions[index]
-                    let isMajor = index < 12
-                    let position = index % 12
-                    let angle = Double(position) * 30 - 90 // Start at 12 o'clock
-                    let distance = isMajor ? radius * 0.85 : radius * 0.55
-
-                    let tracksAtPosition = tracks.filter { $0.camelotNotation == camelot }
-                    let isSelected = selectedTrack?.camelotNotation == camelot
-
-                    CamelotSegment(
-                        camelot: camelot,
-                        angle: angle,
-                        distance: distance,
-                        center: center,
-                        trackCount: tracksAtPosition.count,
-                        isSelected: isSelected,
-                        isMajor: isMajor
-                    )
+                    .strokeBorder(theme.textColor.opacity(0.12), lineWidth: 1)
+                    .frame(width: (inner - badge * 0.9) * 2, height: (inner - badge * 0.9) * 2)
+                    .position(center)
+                VStack(spacing: 1) {
+                    Text(selected ?? "--")
+                        .font(.system(size: badge * 0.62, weight: .bold, design: .monospaced))
+                        .foregroundColor(theme.textColor)
+                    if let centerKey {
+                        Text(centerKey)
+                            .font(.system(size: badge * 0.34, weight: .medium, design: .monospaced))
+                            .foregroundColor(theme.secondaryTextColor)
+                    }
                 }
+                .position(center)
 
-                // Center label
-                VStack(spacing: 4) {
-                    Text("CAMELOT")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundColor(themeManager.tertiaryTextColor)
-                    Text("WHEEL")
-                        .font(.system(size: 8, design: .monospaced))
-                        .foregroundColor(themeManager.tertiaryTextColor)
-                    Text("\(tracks.count)")
-                        .font(.system(size: 14, weight: .bold, design: .monospaced))
-                        .foregroundColor(themeManager.accentColor)
-                    Text("tracks")
-                        .font(.system(size: 8, design: .monospaced))
-                        .foregroundColor(themeManager.tertiaryTextColor)
+                ForEach(1...12, id: \.self) { number in
+                    // 12 sits at the top, numbers run clockwise.
+                    let angle = Double(number % 12) * 30 - 90
+                    badgeView("\(number)B", size: badge).position(point(center, outer, angle))
+                    badgeView("\(number)A", size: badge).position(point(center, inner, angle))
                 }
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
         }
-    }
-}
-
-struct CamelotSegment: View {
-    let camelot: String
-    let angle: Double
-    let distance: CGFloat
-    let center: CGPoint
-    let trackCount: Int
-    let isSelected: Bool
-    let isMajor: Bool
-    @EnvironmentObject var themeManager: ThemeManager
-
-    var body: some View {
-        let radian = angle * .pi / 180
-        let x = center.x + distance * cos(radian)
-        let y = center.y + distance * sin(radian)
-
-        ZStack {
-            // Dot indicator
-            Circle()
-                .fill(dotColor)
-                .frame(width: dotSize, height: dotSize)
-
-            // Camelot label
-            Text(camelot)
-                .font(.system(size: fontSize, weight: .medium, design: .monospaced))
-                .foregroundColor(labelColor)
-        }
-        .position(x: x, y: y)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilitySummary)
     }
 
-    private var dotSize: CGFloat {
-        if trackCount == 0 { return 4 }
-        if isSelected { return 16 }
-        return min(8 + CGFloat(trackCount) * 2, 20)
+    private func point(_ center: CGPoint, _ radius: CGFloat, _ degrees: Double) -> CGPoint {
+        let radians = degrees * .pi / 180
+        return CGPoint(x: center.x + radius * cos(radians), y: center.y + radius * sin(radians))
     }
 
-    private var fontSize: CGFloat {
-        isSelected ? 11 : (trackCount > 0 ? 9 : 7)
+    private func badgeView(_ camelot: String, size: CGFloat) -> some View {
+        let isSelected = camelot == selected
+        let isMove = !isSelected && compatible.contains(camelot)
+        let count = counts[camelot] ?? 0
+        let hue = KF.camelotColor(camelot)
+        return Text(camelot)
+            .font(.system(size: max(9, size * 0.34), weight: isSelected || isMove ? .bold : .medium, design: .monospaced))
+            .foregroundColor(isSelected ? theme.backgroundColor
+                             : isMove ? hue
+                             : count > 0 ? theme.textColor : theme.tertiaryTextColor)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .frame(width: size, height: size)
+            .background(Circle().fill(isSelected ? theme.accentColor
+                                      : isMove ? hue.opacity(0.16)
+                                      : theme.textColor.opacity(count > 0 ? 0.07 : 0.03)))
+            .overlay(Circle().strokeBorder(isSelected ? theme.accentColor
+                                           : isMove ? hue.opacity(0.9)
+                                           : theme.textColor.opacity(0.1), lineWidth: isMove ? 1.5 : 1))
+            .help(count == 0 ? camelot : "\(camelot): \(count) track\(count == 1 ? "" : "s")")
     }
 
-    private var dotColor: Color {
-        if isSelected { return themeManager.accentColor }
-        if trackCount > 0 { return themeManager.accentColor.opacity(0.6) }
-        return themeManager.surfaceColor
-    }
-
-    private var labelColor: Color {
-        if isSelected { return themeManager.accentColor }
-        if trackCount > 0 { return themeManager.textColor }
-        return themeManager.tertiaryTextColor
+    private var accessibilitySummary: String {
+        guard let selected else { return "Camelot wheel" }
+        let moves = compatible.subtracting([selected]).sorted().joined(separator: ", ")
+        return "Camelot wheel. Selected \(selected). Harmonic moves: \(moves)"
     }
 }

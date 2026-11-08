@@ -1,4 +1,5 @@
 import SwiftUI
+import KeyFinderEngine
 
 struct TagEditorView: View {
     @Binding var track: TrackAnalysis
@@ -52,11 +53,30 @@ struct TagEditorView: View {
 
                     // Read-only detected info
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("DETECTED INFO")
+                        Text("ANALYSIS / CORRECTIONS")
                             .font(.system(size: 10, weight: .bold, design: .monospaced))
                             .foregroundColor(themeManager.tertiaryTextColor)
 
                         InfoRow(label: "Key", value: track.key ?? "Unknown")
+                        Picker("Correct key", selection: Binding(
+                            get: { track.key ?? "" },
+                            set: { name in
+                                guard let key = KeyDetector.MusicalKey.allCases.first(where: { $0.shortName == name }) else { return }
+                                track.key = key.shortName
+                                track.camelotNotation = key.camelotNotation
+                            }
+                        )) {
+                            Text("Unknown").tag("")
+                            ForEach(KeyDetector.MusicalKey.allCases, id: \.self) { key in
+                                Text("\(key.rawValue) · \(key.camelotNotation)").tag(key.shortName)
+                            }
+                        }
+                        Text("Detected: \(track.detectedKey ?? track.key ?? "Unknown"). Confidence is an algorithm score, not measured accuracy.")
+                            .font(.caption).foregroundColor(themeManager.secondaryTextColor)
+                        Button("Restore detected key") {
+                            track.key = track.detectedKey
+                            track.camelotNotation = track.detectedCamelot
+                        }.disabled(track.detectedKey == nil)
                         InfoRow(label: "Camelot", value: track.camelotNotation ?? "Unknown")
                         InfoRow(label: "BPM", value: track.bpm ?? "Unknown")
                         InfoRow(label: "Confidence", value: track.confidenceText)
@@ -125,7 +145,7 @@ struct TagEditorView: View {
                 .background(themeManager.borderColor)
 
             HStack {
-                Text("Changes are saved automatically")
+                Text("Saved in your KeyFinder crate • Audio files are unchanged")
                     .font(.system(size: 8, design: .monospaced))
                     .foregroundColor(themeManager.tertiaryTextColor)
                 Spacer()

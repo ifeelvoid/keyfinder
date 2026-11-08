@@ -9,7 +9,7 @@ extension Notification.Name {
     static let exportEngineDJ = Notification.Name("exportEngineDJ")
     static let exportVirtualDJ = Notification.Name("exportVirtualDJ")
     static let exportiTunes = Notification.Name("exportiTunes")
-    static let writeTags = Notification.Name("writeTags")
+    static let exportMetadataPlan = Notification.Name("exportMetadataPlan")
     static let focusSearch = Notification.Name("focusSearch")
     static let showHelp = Notification.Name("showHelp")
     static let showAnalysisLog = Notification.Name("showAnalysisLog")

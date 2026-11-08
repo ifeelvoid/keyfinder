@@ -1,0 +1,11 @@
+KeyFinder 2.1 — Apple Silicon development preview
+
+Apple Silicon only (M1 or newer). Not compatible with Intel Macs.
+Built with a macOS 12 deployment target; minimum-OS testing is still pending.
+
+This build is ad-hoc signed, not notarized. Public distribution needs Developer ID
+signing and Apple notarization. Do not disable macOS security to run this preview.
+
+The standalone app is included; VST/AU plugins have not been rebuilt.
+If installing into Applications, preserve your existing KeyFinder first.
+The preview uses a separate v2.1 crate file, but shares appearance preferences.

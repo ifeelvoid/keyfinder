@@ -1,8 +1,8 @@
 import Foundation
 import AppKit
 
-struct KeyChange: Identifiable {
-    let id = UUID()
+struct KeyChange: Identifiable, Codable {
+    var id = UUID()
     let timestamp: TimeInterval
     let key: String
     let camelotNotation: String
@@ -14,6 +14,7 @@ struct CuePoint: Identifiable, Codable {
     var timestamp: TimeInterval
     var name: String
     var color: String // Rekordbox compatible colors
+    var isSuggested: Bool = false
 
     init(id: UUID = UUID(), timestamp: TimeInterval, name: String, color: String = "purple") {
         self.id = id
@@ -138,8 +139,8 @@ enum AnalysisErrorType: Equatable {
     }
 }
 
-struct TrackAnalysis: Identifiable {
-    let id = UUID()
+struct TrackAnalysis: Identifiable, Codable {
+    var id = UUID()
     let fileName: String
     let filePath: URL
     var albumArt: NSImage?
@@ -161,6 +162,17 @@ struct TrackAnalysis: Identifiable {
     var year: String?
     var comment: String?
     var energy: String? // Low, Medium, High, Very High
+    var detectedKey: String?
+    var detectedCamelot: String?
+    var detectedBPM: String?
+    var analysisFingerprint: String?
+
+    // App-only/transient state is never stored in the crate snapshot.
+    enum CodingKeys: String, CodingKey {
+        case id, fileName, filePath, key, camelotNotation, bpm, confidence, keyChanges
+        case duration, cuePoints, tags, artist, title, genre, year, comment, energy
+        case beatGrid, timeSignature, detectedKey, detectedCamelot, detectedBPM, analysisFingerprint
+    }
 
     // Beatgrid and phase data
     var beatGrid: BeatGridData?

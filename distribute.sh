@@ -1,81 +1,52 @@
 #!/bin/bash
-# KeyFinder Distribution Script
-# Builds, signs, notarizes, and packages for web distribution
-# Requires: Apple Developer ID cert + notarytool credentials
-set -e
-
-APP_NAME="KeyFinder"
-VERSION="1.9"
-BUNDLE_ID="com.keyfinder.app"
-DMG_NAME="${APP_NAME}-v${VERSION}.dmg"
-
-# ─── Step 1: Build ──────────────────────────────────────────────────────────
-echo "▶ Building..."
-./build-app.sh
-
-# ─── Step 2: Verify signing identity ────────────────────────────────────────
-IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F '"' '{print $2}')
-if [ -z "$IDENTITY" ]; then
-    echo "❌ No Developer ID Application certificate found."
-    echo "   Get one at: https://developer.apple.com/account/resources/certificates"
-    exit 1
+# Package the current app. Developer ID notarization is an explicit optional step.
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")" && pwd)
+SKIP_BUILD=false
+PREVIEW=false
+NOTARIZE=false
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --skip-build) SKIP_BUILD=true; shift ;;
+        --apple-silicon-preview) PREVIEW=true; shift ;;
+        --notarize) NOTARIZE=true; shift ;;
+        --help|-h)
+            echo 'Usage: distribute.sh [--skip-build] [--apple-silicon-preview] [--notarize]'
+            echo '--notarize requires SIGNING_IDENTITY and NOTARYTOOL_PROFILE.'
+            exit 0 ;;
+        *) echo "Unknown option: $1" >&2; exit 2 ;;
+    esac
+done
+if $NOTARIZE; then
+    [ -n "${SIGNING_IDENTITY:-}" ] && [ "$SIGNING_IDENTITY" != - ] || { echo '--notarize requires a configured Developer ID SIGNING_IDENTITY.' >&2; exit 2; }
+    [ -n "${NOTARYTOOL_PROFILE:-}" ] || { echo '--notarize requires NOTARYTOOL_PROFILE (an existing keychain profile).' >&2; exit 2; }
 fi
-echo "✓ Signing identity: ${IDENTITY}"
-
-# ─── Step 3: Sign with hardened runtime (required for notarization) ─────────
-echo "▶ Signing with hardened runtime..."
-codesign --force --deep \
-    --sign "${IDENTITY}" \
-    --options runtime \
-    --entitlements entitlements.plist \
-    "build/${APP_NAME}.app"
-echo "✓ Signed"
-
-# ─── Step 4: Create DMG ─────────────────────────────────────────────────────
-echo "▶ Creating DMG..."
-rm -f "build/${DMG_NAME}"
-hdiutil create \
-    -volname "${APP_NAME} ${VERSION}" \
-    -srcfolder "build/${APP_NAME}.app" \
-    -ov -format UDZO \
-    "build/${DMG_NAME}"
-
-# Sign the DMG too
-codesign --force --sign "${IDENTITY}" "build/${DMG_NAME}"
-echo "✓ DMG created and signed: build/${DMG_NAME}"
-
-# ─── Step 5: Notarize ───────────────────────────────────────────────────────
-echo ""
-echo "▶ Submitting for notarization..."
-echo "  (This takes 1-5 minutes)"
-echo ""
-echo "You'll need your Apple ID and an App-Specific Password."
-echo "Generate one at: https://appleid.apple.com → App-Specific Passwords"
-echo ""
-
-read -p "Apple ID (email): " APPLE_ID
-read -sp "App-Specific Password: " APP_PASSWORD
-echo ""
-read -p "Team ID (from developer.apple.com/account): " TEAM_ID
-
-xcrun notarytool submit "build/${DMG_NAME}" \
-    --apple-id "${APPLE_ID}" \
-    --password "${APP_PASSWORD}" \
-    --team-id "${TEAM_ID}" \
-    --wait
-
-# ─── Step 6: Staple notarization ticket to DMG ──────────────────────────────
-echo "▶ Stapling notarization ticket..."
-xcrun stapler staple "build/${DMG_NAME}"
-echo "✓ Stapled"
-
-# ─── Step 7: Verify ─────────────────────────────────────────────────────────
-echo "▶ Verifying..."
-spctl --assess --type open --context context:primary-signature "build/${DMG_NAME}" && echo "✓ Gatekeeper approved"
-
-echo ""
-echo "🎉 Distribution build ready!"
-echo "   File: build/${DMG_NAME}"
-echo "   Size: $(du -sh "build/${DMG_NAME}" | cut -f1)"
-echo ""
-echo "Upload this DMG to your website."
+APP="$ROOT/dist/KeyFinder.app"
+SUFFIX=""
+if $PREVIEW; then APP="$ROOT/dist/KeyFinder-AppleSilicon-preview.app"; SUFFIX=-AppleSilicon-preview; fi
+if ! $SKIP_BUILD; then
+    if $PREVIEW; then bash "$ROOT/build-app.sh" --apple-silicon-preview; else bash "$ROOT/build-app.sh"; fi
+fi
+[ -d "$APP" ] || { echo "Missing current app: $APP" >&2; exit 1; }
+VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
+# A version becomes a filename component, so reject path separators and whitespace.
+[[ "$VERSION" =~ ^[0-9][0-9A-Za-z._-]*$ ]] || { echo 'Invalid app version in Info.plist.' >&2; exit 1; }
+if $NOTARIZE; then
+    codesign --force --deep --sign "$SIGNING_IDENTITY" --options runtime --timestamp \
+        --entitlements "$ROOT/entitlements.plist" "$APP"
+    codesign --verify --deep --strict "$APP"
+fi
+PACKAGE_OPTIONS=(--skip-build)
+if $PREVIEW; then PACKAGE_OPTIONS+=(--apple-silicon-preview); fi
+bash "$ROOT/make-dmg.sh" "${PACKAGE_OPTIONS[@]}"
+DMG="$ROOT/dist/KeyFinder-v$VERSION$SUFFIX.dmg"
+[ -f "$DMG" ] || { echo "Missing packaged DMG: $DMG" >&2; exit 1; }
+if $NOTARIZE; then
+    codesign --force --sign "$SIGNING_IDENTITY" --timestamp "$DMG"
+    xcrun notarytool submit "$DMG" --keychain-profile "$NOTARYTOOL_PROFILE" --wait
+    xcrun stapler staple "$DMG"
+    xcrun stapler validate "$DMG"
+    spctl --assess --type open --context context:primary-signature "$DMG"
+fi
+echo "Distribution artifact: $DMG"
+shasum -a 256 "$DMG"

@@ -1,5 +1,6 @@
 # Swift Package Manager
 .build/
+dist/
 .swiftpm/
 Package.resolved
 
@@ -26,3 +27,6 @@ Icon
 *.swp
 *~.nib
 *.tmp
+
+# Python bytecode
+__pycache__/

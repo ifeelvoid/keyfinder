@@ -1,0 +1,38 @@
+name: Build macOS
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  app:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Engine regressions
+        run: swift test --package-path Sources/KeyFinderEngine
+      - name: Standalone regression runner
+        run: swift run --package-path Sources/KeyFinderEngine KeyFinderRegression
+      - name: Crate and theme persistence regressions
+        run: bash tools/test-crate.sh
+      - name: App workflow regressions
+        run: bash tools/test-app-workflows.sh
+      - name: Live input session regressions
+        run: bash tools/test-live-analysis.sh
+      - name: Benchmark and report integrity regressions
+        run: |
+          python3 -m unittest discover -s tools/free-key-benchmark -v
+          python3 -m unittest discover -s tools/key-challenge -v
+          python3 -m unittest discover -s tools -p 'test_catalog_agreement.py' -v
+      - name: Release entry point regressions
+        run: bash tools/test-release-scripts.sh
+      - name: Build and verify universal installer
+        run: bash make-dmg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KeyFinder-macOS-universal
+          path: dist/*.dmg
+          if-no-files-found: error

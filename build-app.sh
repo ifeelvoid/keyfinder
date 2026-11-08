@@ -1,129 +1,69 @@
 #!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")"
 
-# Build script for KeyFinder macOS app
-set -e
-
-echo "Building KeyFinder..."
-
-# Build universal binary (Intel + Apple Silicon)
-echo "Building for Intel (x86_64)..."
-swift build -c release --arch x86_64
-
-echo "Building for Apple Silicon (arm64)..."
-swift build -c release --arch arm64
-
-echo "Creating universal binary..."
-# Create universal binary using lipo
-mkdir -p .build/universal
-lipo -create \
-    .build/x86_64-apple-macosx/release/KeyFinder \
-    .build/arm64-apple-macosx/release/KeyFinder \
-    -output .build/universal/KeyFinder
-
-# Create app bundle structure
-APP_NAME="KeyFinder"
-APP_DIR="build/${APP_NAME}.app"
-CONTENTS_DIR="${APP_DIR}/Contents"
-MACOS_DIR="${CONTENTS_DIR}/MacOS"
-RESOURCES_DIR="${CONTENTS_DIR}/Resources"
-
-# Clean and create directories
-rm -rf build
-mkdir -p "${MACOS_DIR}"
-mkdir -p "${RESOURCES_DIR}"
-
-# Copy universal executable
-cp .build/universal/KeyFinder "${MACOS_DIR}/"
-
-# Copy app icon if it exists
-if [ -f "AppIcon.icns" ]; then
-    cp AppIcon.icns "${RESOURCES_DIR}/"
-    echo "✓ App icon added"
+# One source bundle for local testing and the distributable DMG.
+VERSION=2.1
+ARCHES=(x86_64 arm64)
+APP_NAME=KeyFinder
+for OPTION in "$@"; do
+    case "$OPTION" in
+        --apple-silicon-preview) ARCHES=(arm64); APP_NAME=KeyFinder-AppleSilicon-preview ;;
+        *) echo "Unknown option: $OPTION" >&2; exit 2 ;;
+    esac
+done
+SWIFT_OPTIONS=()
+if [ -n "${KEYFINDER_SWIFT_BUILD_DIR:-}" ]; then
+    SWIFT_OPTIONS+=(--scratch-path "$KEYFINDER_SWIFT_BUILD_DIR")
 fi
-
-# Create Info.plist
-cat > "${CONTENTS_DIR}/Info.plist" << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-    <key>CFBundleExecutable</key>
-    <string>KeyFinder</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.keyfinder.app</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>KeyFinder</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>2.0</string>
-    <key>CFBundleVersion</key>
-    <string>9</string>
-    <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>10.15</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
-    <key>LSApplicationCategoryType</key>
-    <string>public.app-category.music</string>
-    <key>CFBundleDocumentTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleTypeName</key>
-            <string>Audio File</string>
-            <key>LSHandlerRank</key>
-            <string>Alternate</string>
-            <key>LSItemContentTypes</key>
-            <array>
-                <string>public.audio</string>
-                <string>public.mp3</string>
-                <string>com.microsoft.waveform-audio</string>
-                <string>com.apple.m4a-audio</string>
-            </array>
-        </dict>
-    </array>
-</dict>
-</plist>
-EOF
-
-# Create PkgInfo
-echo "APPL????" > "${CONTENTS_DIR}/PkgInfo"
-
-echo "App bundle created at: ${APP_DIR}"
-
-# Check for signing identity
-IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F '"' '{print $2}')
-
-if [ -z "$IDENTITY" ]; then
-    echo ""
-    echo "⚠️  No Developer ID certificate found."
-    echo "Attempting to sign with ad-hoc signature (for local use only)..."
-    codesign --force --deep --sign - "${APP_DIR}"
-    echo "✅ App signed with ad-hoc signature"
-    echo "⚠️  This app will only run on your machine"
+BIN_DIRS=()
+# Opt in only when an enclosing sandbox prevents SwiftPM's nested sandbox startup.
+if [ "${KEYFINDER_DISABLE_SWIFTPM_SANDBOX:-0}" = 1 ]; then
+    SWIFT_OPTIONS+=(--disable-sandbox)
+fi
+mkdir -p dist
+STAGING=$(mktemp -d "$PWD/dist/app.XXXXXX")
+trap 'rm -rf "$STAGING"' EXIT
+APP="$STAGING/KeyFinder.app"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+for ARCH in "${ARCHES[@]}"; do
+    EXTRA=()
+    # Newer Command Line Tools ship arm64-only Swift compatibility archives; the macOS 12+
+    # runtime already provides what the x86_64 slice needs.
+    [ "$ARCH" != x86_64 ] || EXTRA=(-Xswiftc -runtime-compatibility-version -Xswiftc none)
+    swift build ${SWIFT_OPTIONS[@]+"${SWIFT_OPTIONS[@]}"} --build-system native -c release --arch "$ARCH" \
+        --sdk "${KEYFINDER_SDK:-$(xcrun --show-sdk-path)}" ${EXTRA[@]+"${EXTRA[@]}"}
+    BIN_DIRS+=("$(swift build ${SWIFT_OPTIONS[@]+"${SWIFT_OPTIONS[@]}"} --build-system native -c release --arch "$ARCH" \
+        --sdk "${KEYFINDER_SDK:-$(xcrun --show-sdk-path)}" --show-bin-path)")
+done
+if [ "${#ARCHES[@]}" = 2 ]; then
+    lipo -create "${BIN_DIRS[0]}/KeyFinder" \
+        "${BIN_DIRS[1]}/KeyFinder" -output "$APP/Contents/MacOS/KeyFinder"
 else
-    echo ""
-    echo "Found signing identity: ${IDENTITY}"
-    echo "Signing app..."
-    codesign --force --deep --sign "${IDENTITY}" --options runtime "${APP_DIR}"
-    echo "✅ App signed with Developer ID"
+    cp "${BIN_DIRS[0]}/KeyFinder" "$APP/Contents/MacOS/KeyFinder"
 fi
-
-echo ""
-echo "🎉 Build complete!"
-echo "App location: ${APP_DIR}"
-
-# Create DMG automatically
-echo ""
-echo "Creating DMG..."
-./make-dmg.sh
-
-echo ""
-echo "✅ DMG created: KeyFinder-v2.0.dmg"
+for ARCH in "${ARCHES[@]}"; do lipo "$APP/Contents/MacOS/KeyFinder" -verify_arch "$ARCH"; done
+cp AppIcon.icns "$APP/Contents/Resources/"
+# Preserve SwiftPM resources alongside the bundle, as expected by generated accessors.
+RESOURCE_BIN=${BIN_DIRS[${#BIN_DIRS[@]}-1]}
+for RESOURCE in "$RESOURCE_BIN"/*.bundle; do
+    [ ! -d "$RESOURCE" ] || cp -R "$RESOURCE" "$APP/"
+done
+cp packaging/Info.plist "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
+if [ -n "${SIGNING_IDENTITY:-}" ]; then
+    codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp \
+        --entitlements entitlements.plist "$APP"
+else
+    codesign --force --sign - "$APP"
+    echo "Local ad-hoc signature; Developer ID signing and notarization required for public distribution."
+fi
+codesign --verify --deep --strict "$APP"
+# Keep prior artifacts recoverable. Never erase the tracked legacy build/ directory.
+if [ -e "dist/$APP_NAME.app" ]; then
+    PREVIOUS=$(mktemp -d "$PWD/dist/previous-app.XXXXXX")
+    mv "dist/$APP_NAME.app" "$PREVIOUS/"
+fi
+mv "$APP" "dist/$APP_NAME.app"
+echo "Built: $PWD/dist/$APP_NAME.app (macOS 12+, architectures: ${ARCHES[*]})"

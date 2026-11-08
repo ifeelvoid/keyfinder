@@ -1,0 +1,28 @@
+KeyFinder 2.1 — macOS 12 or later, Intel and Apple Silicon
+
+KeyFinder is an independent release without an Apple Developer ID, so it is not
+notarized and macOS asks you to confirm it the first time. You only do this once.
+
+1. APP
+   Drag KeyFinder.app onto the Applications shortcut.
+   Open KeyFinder from Applications. If macOS says it cannot verify the developer:
+     - macOS 15 Sequoia or later: open System Settings > Privacy & Security, scroll to
+       Security, click "Open Anyway" next to KeyFinder, then confirm with your password.
+     - macOS 12-14: Control-click KeyFinder.app, choose Open, then click Open.
+
+2. PLUG-INS (Ableton, Logic, FL Studio, etc.)
+   KeyFinder appears as an audio effect / analyzer, not an instrument.
+   Open Finder, press Shift-Command-G, and go to:  ~/Library/Audio/Plug-Ins
+   Copy  Plug-Ins/VST3/KeyFinderVST.vst3       into the VST3 folder.
+   Copy  Plug-Ins/AU/KeyFinderVST.component    into the Components folder (Logic, GarageBand).
+   Restart your DAW and rescan plug-ins.
+
+   If your DAW skips the plug-in or says it is damaged, open Terminal and run:
+     xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/KeyFinderVST.vst3
+     xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/KeyFinderVST.component
+   This only clears the download flag on these two files; it does not change macOS security.
+
+   Upgrading from 2.0: the 2.0 plug-in was registered as an instrument. Re-add KeyFinder
+   to your tracks as an effect after updating.
+
+Your audio files are only read, never modified.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "KeyFinder Benchmark"
+  short_description: "Compare local key detectors with verified song labels"
+  default_prompt: "Use $keyfinder-benchmark to compare KeyFinder against free local references and report measured results."

@@ -1,130 +1,71 @@
 #!/bin/bash
-# Creates a distributable DMG with install instructions and VST/AU plugins
-set -e
-
-APP_NAME="KeyFinder"
-VERSION="2.0"
-DMG_NAME="${APP_NAME}-v${VERSION}.dmg"
-STAGING="build/dmg-staging"
-BUILD_DIR=".build/arm64-apple-macosx/release"
-
-# Build the app first
-swift build -c release
-
-# Create staging folder
-rm -rf "${STAGING}"
-mkdir -p "${STAGING}"
-mkdir -p "${STAGING}/${APP_NAME}.app/Contents/MacOS"
-mkdir -p "${STAGING}/${APP_NAME}.app/Contents/Resources"
-mkdir -p "${STAGING}/VST3"
-mkdir -p "${STAGING}/AU"
-
-# Copy the executable
-cp "${BUILD_DIR}/${APP_NAME}" "${STAGING}/${APP_NAME}.app/Contents/MacOS/"
-
-# Copy VST3 plugin if it exists
-if [ -d "KeyFinderVST/Builds/MacOSX/build/Release/KeyFinderVST.vst3" ]; then
-    cp -R "KeyFinderVST/Builds/MacOSX/build/Release/KeyFinderVST.vst3" "${STAGING}/VST3/"
-    echo "✓ VST3 plugin added"
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")" && pwd)
+PLUGIN_BUILD_DIR=${KEYFINDER_PLUGIN_BUILD_DIR:-"$ROOT/dist/plugin-build"}
+case "$PLUGIN_BUILD_DIR" in /*) ;; *) PLUGIN_BUILD_DIR="$PWD/$PLUGIN_BUILD_DIR" ;; esac
+cd "$ROOT"
+SKIP_BUILD=false
+PREVIEW=false
+for OPTION in "$@"; do
+    case "$OPTION" in
+        --skip-build) SKIP_BUILD=true ;;
+        --apple-silicon-preview) PREVIEW=true ;;
+        *) echo "Unknown option: $OPTION" >&2; exit 2 ;;
+    esac
+done
+APP=dist/KeyFinder.app
+SUFFIX=""
+ARCHES=(x86_64 arm64)
+if $PREVIEW; then
+    APP=dist/KeyFinder-AppleSilicon-preview.app
+    SUFFIX=-AppleSilicon-preview
+    ARCHES=(arm64)
 fi
-
-# Copy AU plugin if it exists
-if [ -d "KeyFinderVST/Builds/MacOSX/build/Release/KeyFinderVST.component" ]; then
-    cp -R "KeyFinderVST/Builds/MacOSX/build/Release/KeyFinderVST.component" "${STAGING}/AU/"
-    echo "✓ AU plugin added"
+if ! $SKIP_BUILD; then
+    if $PREVIEW; then bash build-app.sh --apple-silicon-preview; else bash build-app.sh; fi
 fi
-
-# Create Info.plist
-cat > "${STAGING}/${APP_NAME}.app/Contents/Info.plist" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key>
-    <string>KeyFinder</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.keyfinder.app</string>
-    <key>CFBundleName</key>
-    <string>KeyFinder</string>
-    <key>CFBundleVersion</key>
-    <string>2.0</string>
-    <key>CFBundleShortVersionString</key>
-    <string>2.0</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>10.15</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
-    <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
-</dict>
-</plist>
-EOF
-
-# Copy app icon if it exists
-if [ -f "AppIcon.icns" ]; then
-    cp "AppIcon.icns" "${STAGING}/${APP_NAME}.app/Contents/Resources/"
-    echo "✓ App icon added"
+for ARCH in "${ARCHES[@]}"; do lipo "$APP/Contents/MacOS/KeyFinder" -verify_arch "$ARCH"; done
+codesign --verify --deep --strict "$APP"
+VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
+MIN_OS=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP/Contents/Info.plist")
+[ "$MIN_OS" = 12.0 ] || { echo "Unexpected minimum OS: $MIN_OS" >&2; exit 1; }
+STAGING=$(mktemp -d "$PWD/dist/dmg.XXXXXX")
+trap 'rm -rf "$STAGING"' EXIT
+mkdir "$STAGING/contents"
+ditto "$APP" "$STAGING/contents/KeyFinder.app"
+ln -s /Applications "$STAGING/contents/Applications"
+cp packaging/INSTALL.txt "$STAGING/contents/INSTALL.txt"
+cp packaging/CREDITS.txt "$STAGING/contents/CREDITS.txt"
+if $PREVIEW; then cp packaging/INSTALL-preview.txt "$STAGING/contents/INSTALL.txt"; fi
+# Universal plugins from `cmake --build dist/plugin-build` (see KeyFinderVST/CMakeLists.txt).
+PLUGINS="$PLUGIN_BUILD_DIR/KeyFinderVST_artefacts/Release"
+if ! $PREVIEW && [ -d "$PLUGINS/AU/KeyFinderVST.component" ] && [ -d "$PLUGINS/VST3/KeyFinderVST.vst3" ]; then
+    mkdir -p "$STAGING/contents/Plug-Ins/AU" "$STAGING/contents/Plug-Ins/VST3"
+    ditto "$PLUGINS/AU/KeyFinderVST.component" "$STAGING/contents/Plug-Ins/AU/KeyFinderVST.component"
+    ditto "$PLUGINS/VST3/KeyFinderVST.vst3" "$STAGING/contents/Plug-Ins/VST3/KeyFinderVST.vst3"
+    for BUNDLE in "$STAGING"/contents/Plug-Ins/*/KeyFinderVST.*; do
+        for ARCH in "${ARCHES[@]}"; do lipo "$BUNDLE/Contents/MacOS/KeyFinderVST" -verify_arch "$ARCH"; done
+        if [ -n "${SIGNING_IDENTITY:-}" ]; then
+            codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$BUNDLE"
+        else
+            codesign --force --sign - "$BUNDLE"
+        fi
+        codesign --verify --deep --strict "$BUNDLE"
+    done
+elif ! $PREVIEW; then
+    if [ -n "${KEYFINDER_PLUGIN_BUILD_DIR:-}" ] || [ -d "$PLUGINS/AU/KeyFinderVST.component" ] || [ -d "$PLUGINS/VST3/KeyFinderVST.vst3" ]; then
+        echo "Incomplete plugin build: $PLUGINS (both AU and VST3 are required)" >&2
+        exit 1
+    fi
+    echo "Plugins not built; DMG contains the app only. Build them with KeyFinderVST/CMakeLists.txt." >&2
 fi
-
-# Copy Resources if they exist
-if [ -d "Sources/KeyFinder/Resources" ]; then
-    cp -R "Sources/KeyFinder/Resources/"* "${STAGING}/${APP_NAME}.app/Contents/Resources/" 2>/dev/null || true
+DMG_NAME="KeyFinder-v$VERSION$SUFFIX.dmg"
+hdiutil create -volname "KeyFinder $VERSION$SUFFIX" -srcfolder "$STAGING/contents" \
+    -format UDZO "$STAGING/$DMG_NAME"
+hdiutil verify "$STAGING/$DMG_NAME"
+if [ -e "dist/$DMG_NAME" ]; then
+    PREVIOUS=$(mktemp -d "$PWD/dist/previous-dmg.XXXXXX")
+    mv "dist/$DMG_NAME" "$PREVIOUS/"
 fi
-
-# Create install instructions
-cat > "${STAGING}/HOW TO INSTALL.txt" << 'EOF'
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  KeyFinder v2.0 — Installation Guide
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-INSTALLING THE APP
-─────────────────
-  1. Drag KeyFinder.app into your Applications folder.
-
-  2. On first launch, right-click KeyFinder.app → Open
-     (This is required because the app is not from the Mac App Store)
-
-INSTALLING PLUGINS
-──────────────────
-  VST3 Plugin (for Ableton, FL Studio, Logic, etc.):
-    → Copy KeyFinderVST.vst3 to:
-      ~/Library/Audio/Plug-Ins/VST3/
-
-  AU Plugin (for Logic, GarageBand, etc.):
-    → Copy KeyFinderVST.component to:
-      ~/Library/Audio/Plug-Ins/Components/
-
-  After copying, restart your DAW to see the plugin.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Requires macOS 10.15 or later
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EOF
-
-# Create a symlink to /Applications for easy drag-install
-ln -s /Applications "${STAGING}/Applications"
-
-# Build the DMG from staging folder
-rm -f "${DMG_NAME}"
-rm -f "build/${DMG_NAME}"
-hdiutil create \
-    -volname "${APP_NAME} v${VERSION}" \
-    -srcfolder "${STAGING}" \
-    -ov -format UDZO \
-    "${DMG_NAME}"
-
-# Also copy to build folder
-cp "${DMG_NAME}" "build/"
-
-# Clean up staging
-rm -rf "${STAGING}"
-
-echo ""
-echo "✅ Done: ${DMG_NAME}"
-echo "   Size: $(du -sh "${DMG_NAME}" | cut -f1)"
+mv "$STAGING/$DMG_NAME" dist/
+shasum -a 256 "dist/$DMG_NAME"

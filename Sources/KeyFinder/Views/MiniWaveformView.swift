@@ -4,37 +4,40 @@ import AVFoundation
 struct MiniWaveformView: View {
     let filePath: URL
     let beatGrid: BeatGridData?  // Optional beatgrid for overlay
+    var tint: Color? = nil       // Defaults to the theme accent
     @EnvironmentObject var themeManager: ThemeManager
     @State private var waveformData: [Float] = []
     @State private var duration: TimeInterval = 0
 
     // Higher resolution sample count for better detail
-    private let targetSamples = 100
+    private let targetSamples = 240
 
     // Convenience initializer that accepts TrackAnalysis
-    init(track: TrackAnalysis) {
+    init(track: TrackAnalysis, tint: Color? = nil) {
         self.filePath = track.filePath
         self.beatGrid = track.beatGrid
+        self.tint = tint
     }
 
-    init(filePath: URL, beatGrid: BeatGridData?) {
+    init(filePath: URL, beatGrid: BeatGridData?, tint: Color? = nil) {
         self.filePath = filePath
         self.beatGrid = beatGrid
+        self.tint = tint
     }
 
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                // Waveform bars
-                HStack(spacing: 0.5) {
-                    ForEach(Array(waveformData.enumerated()), id: \.offset) { index, amplitude in
-                        Rectangle()
-                            .fill(themeManager.accentColor.opacity(0.6))
-                            .frame(width: max(0.5, geometry.size.width / CGFloat(waveformData.count) - 0.5))
-                            .frame(height: max(1, CGFloat(amplitude) * geometry.size.height))
+                // Separate rounded bars, one per ~4 pt, centred on the midline.
+                let bars = Self.pooled(waveformData, count: max(8, Int(geometry.size.width / 4)))
+                HStack(spacing: 1.5) {
+                    ForEach(Array(bars.enumerated()), id: \.offset) { _, amplitude in
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(tint ?? themeManager.accentColor.opacity(0.6))
+                            .frame(height: max(2, CGFloat(amplitude) * geometry.size.height))
                     }
                 }
-                .frame(height: geometry.size.height, alignment: .center)
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .center)
 
                 // Beatgrid overlay
                 if let grid = beatGrid, grid.hasValidGrid, duration > 0 {
@@ -44,6 +47,17 @@ struct MiniWaveformView: View {
         }
         .onAppear {
             generateWaveform()
+        }
+    }
+
+    /// Peak of each equal slice, so short spikes survive downsampling.
+    static func pooled(_ values: [Float], count: Int) -> [Float] {
+        guard !values.isEmpty, count > 0 else { return [] }
+        guard values.count > count else { return values }
+        return (0..<count).map { index in
+            let start = index * values.count / count
+            let end = max(start + 1, (index + 1) * values.count / count)
+            return values[start..<end].max() ?? 0
         }
     }
 

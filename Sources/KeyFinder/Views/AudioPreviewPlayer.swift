@@ -99,18 +99,10 @@ class AudioPlayerManager: ObservableObject {
                 self.duration = newPlayer.duration
                 self.isCrossfading = false
 
-                // Update currentURL
-                if let newURL = self.findURLMatchingCurrentPosition() {
-                    self.currentURL = newURL
-                }
+                // The secondary reference was cleared above; use the player we retained.
+                self.currentURL = newPlayer.url
             }
         }
-    }
-
-    /// Helper to track current URL (simplified - in real app you'd track this better)
-    private func findURLMatchingCurrentPosition() -> URL? {
-        // This is a placeholder - in practice you'd pass the URL through
-        return crossfadePlayer?.url
     }
 
     func togglePlayPause() {
@@ -294,7 +286,7 @@ struct AudioPreviewPlayer: View {
                 // Playhead
                 if playerManager.duration > 0 {
                     Rectangle()
-                        .fill(Color.white.opacity(0.8))
+                        .fill(themeManager.textColor.opacity(0.8))
                         .frame(width: 2)
                         .offset(x: playheadPosition(in: geometry.size.width))
                 }

@@ -51,7 +51,7 @@ struct CuePointsView: View {
                         Image(systemName: "info.circle")
                             .font(.system(size: 12))
                             .foregroundColor(themeManager.accentColor)
-                        Text("Play the track, then click 'Add Cue' at the moment you want to mark")
+                        Text("Audition suggested cues and approve them before export. Add manual cues at the playback position.")
                             .font(.system(size: 9, design: .monospaced))
                             .foregroundColor(themeManager.secondaryTextColor)
                     }
@@ -141,7 +141,7 @@ struct CuePointsView: View {
                                 .cornerRadius(4)
                             }
                             .buttonStyle(.plain)
-                            .disabled(newCueName.isEmpty)
+                            .disabled(newCueName.isEmpty || track.cuePoints.count >= 8 || playerManager.duration <= 0)
                         }
 
                         Text("Current time: \(formatTime(playerManager.currentTime))")
@@ -159,6 +159,12 @@ struct CuePointsView: View {
                                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                                 .foregroundColor(themeManager.tertiaryTextColor)
                             Spacer()
+                            if track.cuePoints.contains(where: { $0.isSuggested }) {
+                                Button("Approve suggestions") {
+                                    for index in track.cuePoints.indices { track.cuePoints[index].isSuggested = false }
+                                }
+                                .font(.caption)
+                            }
                             if !track.cuePoints.isEmpty {
                                 Button(action: { track.cuePoints.removeAll() }) {
                                     Text("Clear All")
@@ -175,6 +181,17 @@ struct CuePointsView: View {
                                 .foregroundColor(themeManager.tertiaryTextColor)
                                 .padding(.vertical, 12)
                         } else {
+                            ForEach($track.cuePoints) { $cue in
+                                HStack {
+                                    TextField("Cue name", text: $cue.name)
+                                    TextField("Seconds", value: $cue.timestamp, format: .number.precision(.fractionLength(2)))
+                                        .frame(width: 80)
+                                    if cue.isSuggested {
+                                        Button("Approve") { cue.isSuggested = false }
+                                    }
+                                }
+                                .font(.caption)
+                            }
                             VStack(spacing: 8) {
                                 ForEach(track.cuePoints.sorted(by: { $0.timestamp < $1.timestamp })) { cue in
                                     CuePointRow(
@@ -201,7 +218,7 @@ struct CuePointsView: View {
                 .background(themeManager.borderColor)
 
             HStack {
-                Text("\(track.cuePoints.count) cue point\(track.cuePoints.count == 1 ? "" : "s") • Exports to Rekordbox XML")
+                Text("Up to 8 cues • Approved cues export to Rekordbox XML")
                     .font(.system(size: 8, design: .monospaced))
                     .foregroundColor(themeManager.tertiaryTextColor)
                 Spacer()
@@ -225,6 +242,10 @@ struct CuePointsView: View {
         }
         .onDisappear {
             playerManager.stop()
+            for index in track.cuePoints.indices {
+                let time = track.cuePoints[index].timestamp
+                track.cuePoints[index].timestamp = time.isFinite ? max(0, min(time, max(0, track.duration - 0.01))) : 0
+            }
         }
     }
 
@@ -250,7 +271,7 @@ struct CuePointsView: View {
 
                 // Cue point markers
                 ForEach(track.cuePoints) { cue in
-                    let position = (cue.timestamp / playerManager.duration) * geometry.size.width
+                    let position = max(0, min(cue.timestamp / max(playerManager.duration, 0.01), 1)) * geometry.size.width
                     Rectangle()
                         .fill(colorForName(cue.color))
                         .frame(width: 3)
@@ -260,7 +281,7 @@ struct CuePointsView: View {
                 // Playhead
                 if playerManager.duration > 0 {
                     Rectangle()
-                        .fill(Color.white.opacity(0.9))
+                        .fill(themeManager.textColor.opacity(0.9))
                         .frame(width: 2)
                         .offset(x: playheadPosition(in: geometry.size.width))
                 }
@@ -331,7 +352,7 @@ struct CuePointRow: View {
                 .frame(width: 12, height: 12)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(cue.name)
+                Text(cue.name + (cue.isSuggested ? " · Suggested" : ""))
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundColor(themeManager.textColor)
                 Text(formatTime(cue.timestamp))
