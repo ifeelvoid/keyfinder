@@ -211,7 +211,15 @@ public enum RegressionFixtures {
             try require(configured.method == KeyDetector.adoptedMethod(for: style)
                         && configured.style == KeyDetector.adoptedTemplates(for: style), "Style factory must match #0010 adoption")
         }
+        // Some MP3s report one packet more than they decode; the final read then fails (eofErr or no NSError).
+        let silentFailure = NSError(domain: "Foundation._GenericObjCError", code: 0)
+        try require(AudioProcessor.isTailReadFailure(silentFailure, remaining: 1152), "A failed read in the last packet must end the stream")
+        try require(AudioProcessor.isTailReadFailure(NSError(domain: NSOSStatusErrorDomain, code: AudioProcessor.eofErr), remaining: 500_000),
+                    "eofErr must end the stream wherever it occurs")
+        try require(!AudioProcessor.isTailReadFailure(silentFailure, remaining: AudioProcessor.tailToleranceFrames + 1),
+                    "A failed read far from the end must stay an error")
         return ["96 controlled triads across all keys, modes and tuning offsets",
+                "MP3 tail read failures end the stream; mid-file read failures stay errors",
                 "Key model reads all 24 tonic triads; style factory matches #0010 adoption",
                 "Gain invariance, short/exact frames and 48kHz pitch",
                 "Invalid detector inputs and cancellation",

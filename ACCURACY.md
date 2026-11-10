@@ -1,6 +1,6 @@
 # Analysis validation
 
-KeyFinder 2.1 has no verified head-to-head accuracy result against Mixed In Key.
+KeyFinder 3.0 has no verified head-to-head accuracy result against Mixed In Key.
 The old 90–95% claims and 100-track comparison table lacked a reproducible corpus,
 labels or saved outputs in this repository. They are withdrawn pending evidence.
 
@@ -89,7 +89,7 @@ danceability ratings. The mix planner uses it as a rough direction only.
 5. Save manifests and machine-readable results; reserve a held-out set when tuning.
 6. Test exports by loading tracks in Rekordbox/Traktor/Serato and inspecting actual cues.
 
-Until those results exist, describe 2.1 as an improved preparation preview.
+Until those results exist, describe 3.0 without accuracy-parity claims.
 
 ## Session tempo (2026-11-02, adopted)
 
@@ -118,7 +118,7 @@ Limits:
 - 54 songs from one producer, so the intervals are wide.
 - A title-matched mix could come from a different version of the set.
 - Audio shorter than about 8.3 s, such as the first live windows, uses the previous detector.
-- The GiantSteps tempo set is not available locally, so no public tempo result is reported.
+- No public tempo result existed at this date; see the two tempo sections below.
 - No Mixed In Key or Tunebat comparison was run; there is no parity claim.
 - The plug-in's C++ port matches the app on 472/472 readable files (54 truth plus 418 catalog).
 
@@ -175,3 +175,37 @@ Catalog-fitted Trap / Hip-Hop templates were tested as an alternative. They were
 All of this is EDM and producer-catalog evidence. It is not a broad-market accuracy claim. There is no Mixed In Key comparison: MIK could not be run head-to-head here.
 
 The model weights derive from CC BY-SA 4.0 annotations: GiantSteps+ v2 (https://zenodo.org/records/4153506) and GiantSteps-MTG / Beatport EDM Key by Eduard Mas Marín and Ángel Faraldo (https://zenodo.org/records/1101082). The weights are offered under the same terms; see `packaging/CREDITS.txt`. Full provenance: `docs/briefs/0010-genre-key-models/`.
+
+
+## Genre-diverse check: FMAK (2026-11-08)
+
+On 2,813 fresh FMAK tracks (17 genres, expert labels of each song's first 60 seconds, artist-disjoint from all training data), the shipped key model scores **1514 (53.8%)**. That beats the previous template detector (1397, 49.7%) but trails Essentia bgate (1688, 60.0%). Hip-hop (110 tracks): model 46.4%, Essentia 53.6%.
+
+The model scores lower here than on EDM (57% MTG, 72% GiantSteps+ validation), so genre generality is still the main gap. Retraining with FMAK's commercially reusable tracks (only 264 after licence filtering) did not help (M2: 1513, rejected). 105 files (3.7%) failed the app's MP3 decoder in that run. That decoder bug is now fixed (MP3s whose reported length runs one packet past their audio). With the fix the model reads all 2,813 and scores 1568 (55.7%) in a post-hoc rescore. Details: `docs/briefs/0013-key-model-fmak/ledger.md`.
+
+## Tempo against public references: GTZAN and Ballroom (2026-11-10)
+
+Fresh check of the shipped tempo detector on two public sets with human tempo annotations,
+frozen before any detector ran on them and never used for tuning: GTZAN (999 thirty-second
+clips, 10 genres) and Ballroom (685 dance excerpts, including waltzes in 3/4). Essentia's
+RhythmExtractor2013 ran on identical audio as the free reference. Counts are exact (within 2%)
+/ tempo-or-half/double.
+
+| | GTZAN all (999) | GTZAN hip-hop (100) | Ballroom (685) |
+|---|---|---|---|
+| Original detector | 575 / 772 | 59 / 85 | 414 / 554 |
+| **Shipped default** | **528 / 676** | **84 / 87** | **285 / 401** |
+| Essentia | 698 / 870 | 94 / 99 | 472 / 637 |
+
+- The shipped default is built for 4/4 loop-based music. It is well ahead of the original
+  detector on hip-hop (84 vs 59 exact) and on the producer's own sessions (above), which is
+  why it stays the default.
+- On broad music it is behind Essentia, and on Ballroom and GTZAN as a whole it is also
+  behind KeyFinder's original detector. Expect more tempo errors on rock, jazz, classical,
+  swing and anything in 3/4. Check the Half-time / Double-time alternative and correct by hand.
+- Two new candidates (four-bar phrase scoring) were tested under brief #0014 and rejected. A
+  hybrid that lets the original detector break near-ties scored higher on the public sets
+  (GTZAN 589 / 750, Ballroom 370 / 479) but lower on the session tempos (38 vs 42 exact of 54)
+  and did not reach the reference, so it is not shipped.
+- This is not a Tunebat or Mixed In Key comparison and there is no parity claim. Details:
+  `docs/briefs/0014-tempo-tunebat-parity/ledger.md`.

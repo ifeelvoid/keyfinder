@@ -96,6 +96,12 @@ public final class AudioProcessor {
                     try file.read(into: input, frameCount: min(requested, remaining))
                     inputStatus.pointee = input.frameLength == 0 ? .endOfStream : .haveData
                     return input.frameLength == 0 ? nil : input
+                } catch where Self.isTailReadFailure(error, remaining: file.length - file.framePosition) {
+                    // Some MP3s report a length about one packet longer than their decodable audio; the
+                    // final short read then fails (eofErr, or no NSError at all). That is the end of the
+                    // stream, not a broken file.
+                    inputStatus.pointee = .endOfStream
+                    return nil
                 } catch {
                     readError = error
                     inputStatus.pointee = .endOfStream
@@ -115,6 +121,16 @@ public final class AudioProcessor {
             throw failure("No audible audio data was found.")
         }
         return (samples, rate, duration)
+    }
+
+    /// Core Audio's end-of-file status (OSStatus -39).
+    public static let eofErr = -39
+    /// Frames near the reported end where a failed read means end of stream (a few MP3 packets).
+    public static let tailToleranceFrames: AVAudioFramePosition = 4608
+
+    public static func isTailReadFailure(_ error: Error, remaining: AVAudioFramePosition) -> Bool {
+        let status = error as NSError
+        return (status.domain == NSOSStatusErrorDomain && status.code == eofErr) || remaining <= tailToleranceFrames
     }
 
     private func failure(_ message: String) -> NSError {

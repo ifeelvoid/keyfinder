@@ -211,6 +211,11 @@ void KeyFinderAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (text);
     g.setFont (mono (12.0f, true));
     g.drawText ("KEYFINDER", 44, 18, 110, 22, juce::Justification::centredLeft);
+    // Version (major.minor) from the build, so the plug-in and the app's About panel agree.
+    g.setColour (secondary);
+    g.setFont (mono (9.0f));
+    g.drawText ("v" + juce::String (JucePlugin_VersionString).upToLastOccurrenceOf (".", false, false),
+                getWidth() - 70, getHeight() - 18, 58, 12, juce::Justification::centredRight);
 
     // Tab container
     const auto tabs = liveTabBtn.getBounds().getUnion (exportTabBtn.getBounds()).expanded (3).toFloat();

@@ -40,9 +40,9 @@
 - [ ] **Step 1: Create the project directory and package.json**
 
 ```bash
-mkdir -p "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows/renderer"
-mkdir -p "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows/test"
-mkdir -p "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows/assets"
+mkdir -p "<repo>/keyfinder-windows/renderer"
+mkdir -p "<repo>/keyfinder-windows/test"
+mkdir -p "<repo>/keyfinder-windows/assets"
 ```
 
 Create `keyfinder-windows/package.json`:
@@ -103,7 +103,7 @@ Create `keyfinder-windows/package.json`:
 - [ ] **Step 2: Install dependencies**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows" && npm install
+cd "<repo>/keyfinder-windows" && npm install
 ```
 
 Expected: `node_modules/` created, no errors.
@@ -111,7 +111,7 @@ Expected: `node_modules/` created, no errors.
 - [ ] **Step 3: Commit scaffold**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add keyfinder-windows/package.json && git commit -m "feat(windows): scaffold electron project"
+cd "<repo>" && git add keyfinder-windows/package.json && git commit -m "feat(windows): scaffold electron project"
 ```
 
 ---
@@ -157,7 +157,7 @@ test('unknown key returns empty string', () => {
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows" && npm test -- test/camelot.test.js
+cd "<repo>/keyfinder-windows" && npm test -- test/camelot.test.js
 ```
 
 Expected: FAIL — `Cannot find module '../camelot'`
@@ -210,7 +210,7 @@ module.exports = { keyToCamelot, keyToShortName, CAMELOT };
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows" && npm test -- test/camelot.test.js
+cd "<repo>/keyfinder-windows" && npm test -- test/camelot.test.js
 ```
 
 Expected: All 6 tests PASS.
@@ -218,7 +218,7 @@ Expected: All 6 tests PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add keyfinder-windows/camelot.js keyfinder-windows/test/camelot.test.js && git commit -m "feat(windows): add camelot lookup module"
+cd "<repo>" && git add keyfinder-windows/camelot.js keyfinder-windows/test/camelot.test.js && git commit -m "feat(windows): add camelot lookup module"
 ```
 
 ---
@@ -334,7 +334,7 @@ test('exportCSV escapes commas in filenames', () => {
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows" && npm test -- test/exporter.test.js
+cd "<repo>/keyfinder-windows" && npm test -- test/exporter.test.js
 ```
 
 Expected: FAIL — `Cannot find module '../exporter'`
@@ -485,7 +485,7 @@ module.exports = { exportCSV, exportRekordbox, exportSerato, exportTraktor, expo
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows" && npm test -- test/exporter.test.js
+cd "<repo>/keyfinder-windows" && npm test -- test/exporter.test.js
 ```
 
 Expected: All 8 tests PASS.
@@ -493,7 +493,7 @@ Expected: All 8 tests PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add keyfinder-windows/exporter.js keyfinder-windows/test/exporter.test.js && git commit -m "feat(windows): add export module with all 7 formats"
+cd "<repo>" && git add keyfinder-windows/exporter.js keyfinder-windows/test/exporter.test.js && git commit -m "feat(windows): add export module with all 7 formats"
 ```
 
 ---
@@ -675,7 +675,7 @@ async function readMetadata(filePath) {
 - [ ] **Step 2: Commit**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add keyfinder-windows/worker.js && git commit -m "feat(windows): add audio analysis worker (essentia.js + ffmpeg)"
+cd "<repo>" && git add keyfinder-windows/worker.js && git commit -m "feat(windows): add audio analysis worker (essentia.js + ffmpeg)"
 ```
 
 ---
@@ -733,7 +733,7 @@ module.exports = { writeTagsToFile };
 - [ ] **Step 2: Commit**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add keyfinder-windows/tagger.js && git commit -m "feat(windows): add tag writer module"
+cd "<repo>" && git add keyfinder-windows/tagger.js && git commit -m "feat(windows): add tag writer module"
 ```
 
 ---
@@ -928,7 +928,7 @@ ipcMain.handle('write-tags', async (_, tracks) => {
 - [ ] **Step 3: Commit**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add keyfinder-windows/main.js keyfinder-windows/preload.js && git commit -m "feat(windows): add main process and preload bridge"
+cd "<repo>" && git add keyfinder-windows/main.js keyfinder-windows/preload.js && git commit -m "feat(windows): add main process and preload bridge"
 ```
 
 ---
@@ -1264,7 +1264,7 @@ canvas.waveform { display: block; }
 - [ ] **Step 3: Commit**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add keyfinder-windows/renderer/index.html keyfinder-windows/renderer/styles.css && git commit -m "feat(windows): add renderer HTML shell and CSS theme"
+cd "<repo>" && git add keyfinder-windows/renderer/index.html keyfinder-windows/renderer/styles.css && git commit -m "feat(windows): add renderer HTML shell and CSS theme"
 ```
 
 ---
@@ -1564,7 +1564,7 @@ setStatus('READY');
 - [ ] **Step 2: Commit**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add keyfinder-windows/renderer/app.js && git commit -m "feat(windows): add renderer UI logic"
+cd "<repo>" && git add keyfinder-windows/renderer/app.js && git commit -m "feat(windows): add renderer UI logic"
 ```
 
 ---
@@ -1580,19 +1580,19 @@ cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add keyfinder-windows/renderer/a
 
 Check if the macOS app has an icon to convert:
 ```bash
-ls "/Volumes/X6 SSD/Code/Apps/keyfinder/AppIcon.icns" 2>/dev/null && echo "found" || echo "not found"
+ls "<repo>/AppIcon.icns" 2>/dev/null && echo "found" || echo "not found"
 ```
 
 If found, extract a PNG from it:
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows/assets"
-sips -s format png "/Volumes/X6 SSD/Code/Apps/keyfinder/AppIcon.icns" --out icon.png --resampleHeightWidth 512 512
+cd "<repo>/keyfinder-windows/assets"
+sips -s format png "<repo>/AppIcon.icns" --out icon.png --resampleHeightWidth 512 512
 ```
 
 If not found, create a minimal placeholder icon (the build will work without a custom icon, using Electron's default):
 ```bash
 # Skip icon for now — electron-builder uses default if not found
-touch "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows/assets/.gitkeep"
+touch "<repo>/keyfinder-windows/assets/.gitkeep"
 ```
 
 - [ ] **Step 2: Update package.json build config to handle missing icon gracefully**
@@ -1610,7 +1610,7 @@ Edit `keyfinder-windows/package.json` — if no `icon.ico` exists, remove the ic
 - [ ] **Step 3: Commit**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add keyfinder-windows/assets/ && git commit -m "feat(windows): add assets directory"
+cd "<repo>" && git add keyfinder-windows/assets/ && git commit -m "feat(windows): add assets directory"
 ```
 
 ---
@@ -1620,7 +1620,7 @@ cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add keyfinder-windows/assets/ &&
 - [ ] **Step 1: Run the app in dev mode**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows" && npm start
+cd "<repo>/keyfinder-windows" && npm start
 ```
 
 Expected: Electron window opens, shows "KEYFINDER" toolbar, drop zone visible, no console errors.
@@ -1638,7 +1638,7 @@ Click EXPORT → CSV. Expected: save dialog opens, file saves with correct data.
 - [ ] **Step 4: Run unit tests**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder/keyfinder-windows" && npm test
+cd "<repo>/keyfinder-windows" && npm test
 ```
 
 Expected: All tests pass.
@@ -1646,7 +1646,7 @@ Expected: All tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add -A && git commit -m "feat(windows): keyfinder windows app complete"
+cd "<repo>" && git add -A && git commit -m "feat(windows): keyfinder windows app complete"
 ```
 
 ---
@@ -1700,13 +1700,13 @@ jobs:
 - [ ] **Step 2: Commit workflow**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git add .github/workflows/build-windows.yml && git commit -m "ci: add GitHub Actions Windows build workflow"
+cd "<repo>" && git add .github/workflows/build-windows.yml && git commit -m "ci: add GitHub Actions Windows build workflow"
 ```
 
 - [ ] **Step 3: Tag and trigger build**
 
 ```bash
-cd "/Volumes/X6 SSD/Code/Apps/keyfinder" && git tag v1.7-windows && git push origin main --tags
+cd "<repo>" && git tag v1.7-windows && git push origin main --tags
 ```
 
 Expected: GitHub Actions runs, produces `KeyFinder-Setup-1.7.0.exe` as a downloadable artifact.

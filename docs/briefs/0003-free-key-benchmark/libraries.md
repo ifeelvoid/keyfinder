@@ -49,7 +49,7 @@ Always publish exact tonic+mode accuracy separately from weighted MIREX-style sc
 
 ## Existing dirty CNN work: what actually exists
 
-Read-only source checkout: `/Volumes/X6 SSD/Code/Apps/keyfinder`. Its dirty Swift files, app bundle and untracked `cnn-backend` were preserved.
+Read-only source checkout: `<repo>`. Its dirty Swift files, app bundle and untracked `cnn-backend` were preserved.
 
 **Present:** `model.py` defines a PyTorch AllConv-like `KeyNet`; `dataset.py` defines Camelot labels and random pitch-shift/snippet access; `preprocess_data.py`, `train.py`, `eval.py`, `predict_keys.py`, `compare_algorithms.py` and `cnn_bridge.py` provide a pipeline; `CNNBridge.swift` launches the Python JSON bridge. `AudioAnalysisModel.swift` has CNN override/fallback paths and sets `useCNN=false` by default. `build-app.sh` copies the backend, including its environment, into app resources.
 

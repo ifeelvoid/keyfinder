@@ -1,4 +1,4 @@
-KeyFinder 2.1 — Apple Silicon development preview
+KeyFinder 3.0 — Apple Silicon development preview
 
 Apple Silicon only (M1 or newer). Not compatible with Intel Macs.
 Built with a macOS 12 deployment target; minimum-OS testing is still pending.
@@ -8,4 +8,4 @@ signing and Apple notarization. Do not disable macOS security to run this previe
 
 The standalone app is included; VST/AU plugins have not been rebuilt.
 If installing into Applications, preserve your existing KeyFinder first.
-The preview uses a separate v2.1 crate file, but shares appearance preferences.
+The preview uses a separate crate file (library-v2.1.json), but shares appearance preferences.

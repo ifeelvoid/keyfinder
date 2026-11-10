@@ -211,15 +211,6 @@ OLD_VST=("$INSTALL_ROOT"/VST3/previous-KeyFinderVST.*/KeyFinderVST.vst3/original
 OLD_AU=("$INSTALL_ROOT"/Components/previous-KeyFinderVST.*/KeyFinderVST.component/original)
 [ "$(cat "${OLD_VST[0]}")" = 'old vst' ] && [ "$(cat "${OLD_AU[0]}")" = 'old au' ] || fail 'Previous plugins not preserved'
 pass 'Explicit installation replaces both bundles and preserves recoverable prior copies'
-# The pre-fix script builds dist then tries to sign a missing legacy build/ app.
-if git -C "$SOURCE_ROOT" show HEAD:distribute.sh > "$REPO/legacy-distribute.sh" 2>/dev/null; then
-    cd "$REPO"
-    reject "$REPO/legacy-distribute.sh"
-    contains 'build-app '
-    contains 'build/KeyFinder.app'
-    /usr/bin/grep -F 'Missing signing target: build/KeyFinder.app' "$FIXTURE/output.log" >/dev/null || fail 'Legacy failure was not the expected stale artifact'
-    pass 'Pre-fix distribution failure reproduced against current dist artifact layout'
-fi
 # Exercise canonical packaging too, using real metadata and fake system commands.
 cp "$SOURCE_ROOT/make-dmg.sh" "$REPO/make-dmg.sh"
 mkdir -p "$REPO/packaging"

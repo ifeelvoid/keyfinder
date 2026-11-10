@@ -17,6 +17,12 @@ extension BPMDetector {
         case combOctave
         /// #0012 C2 (not adopted): C1, but a near-tied legacy beat decides metre and octave.
         case combLegacy
+        /// #0014 candidate 1 (not adopted, evaluation only): combOctave scored at one-, two- and four-bar lags. Loops repeat in
+        /// 2/4-bar phrases; a ×4/3 or ×3/4 reading lands on 3 or 5⅓ true bars at the 4-bar lag.
+        case combPhrase
+        /// #0014 candidate 2 (not adopted, evaluation only): combPhrase, but a legacy beat whose phrase comb is within
+        /// `legacyTieFraction` of the metre's decides metre and octave (the #0012 C2 rule).
+        case combPhraseLegacy
     }
 
     static let combHop = 512
@@ -26,6 +32,8 @@ extension BPMDetector {
     static let priorCentre = 110.0
     static let priorOctaves = 0.9
     static let combMultiples = [4, 8]
+    static let phraseMultiples = [4, 8, 16]
+    static let phraseMaxLagSeconds = 16.2
     static let legacyTieFraction = 0.95
 
     /// nil when the audio is too short for two bars at 60 BPM (live windows of ~5 s);
@@ -36,6 +44,25 @@ extension BPMDetector {
         let maxLag = Int(ceil(Self.combMaxLagSeconds * fps))
         guard envelope.count > maxLag + 1 else { return nil }
         try Task.checkCancellation()
+        if method == .combPhrase || method == .combPhraseLegacy {
+            // The four-bar term needs up to 16.2 s of lag; shorter audio keeps one- and two-bar lags.
+            let longLag = Int(ceil(Self.phraseMaxLagSeconds * fps))
+            let usable = min(longLag, envelope.count - 1 - Int(fps * 4))
+            let ac = Self.normalizedAutocorrelation(envelope, maxLag: max(maxLag, usable))
+            let multiples = usable >= longLag ? Self.phraseMultiples : Self.combMultiples
+            guard let metre = Self.combMetre(ac, fps: fps, multiples: multiples) else { return 0 }
+            if method == .combPhraseLegacy {
+                let legacy = try await legacyTempo(samples: samples, sampleRate: sampleRate)
+                if legacy >= 60, legacy <= 180,
+                   let peak = Self.combPeak(ac, fps: fps, near: legacy, multiples: multiples),
+                   Self.comb(ac, fps: fps, tenth: peak, multiples: multiples)
+                    >= Self.legacyTieFraction * Self.comb(ac, fps: fps, tenth: metre, multiples: multiples) {
+                    return (Double(peak)).rounded() / 10
+                }
+            }
+            let tempo = Double(Self.octaveChoice(ac, fps: fps, metre: metre, multiples: multiples)) / 10
+            return (tempo * 10).rounded() / 10
+        }
         let ac = Self.normalizedAutocorrelation(envelope, maxLag: maxLag)
         let tempo: Double?
         switch method {
@@ -134,11 +161,11 @@ extension BPMDetector {
     }
 
     /// Mean autocorrelation at the one- and two-bar lags of `tenth`/10 BPM.
-    static func comb(_ ac: [Double], fps: Double, tenth: Int) -> Double {
+    static func comb(_ ac: [Double], fps: Double, tenth: Int, multiples: [Int] = combMultiples) -> Double {
         let lag = 60 * fps / (Double(tenth) / 10)
         var sum = 0.0
-        for k in combMultiples { sum += interpolate(ac, at: Double(k) * lag) }
-        return sum / Double(combMultiples.count)
+        for k in multiples { sum += interpolate(ac, at: Double(k) * lag) }
+        return sum / Double(multiples.count)
     }
 
     /// Comb · prior over 60.0–180.0 BPM in 0.1 steps; the first of equal scores wins.
@@ -153,32 +180,35 @@ extension BPMDetector {
     }
 
     /// #0012: argmax of the comb alone (tenths of BPM); nil without a positive comb.
-    static func combMetre(_ ac: [Double], fps: Double) -> Int? {
+    static func combMetre(_ ac: [Double], fps: Double, multiples: [Int] = combMultiples) -> Int? {
         guard !ac.isEmpty else { return nil }
         var best: Int?, bestScore = 0.0
         for tenth in 600...1800 {
-            let score = comb(ac, fps: fps, tenth: tenth)
+            let score = comb(ac, fps: fps, tenth: tenth, multiples: multiples)
             if score > bestScore { bestScore = score; best = tenth }
         }
         return best
     }
 
     /// Comb peak within ±2% of `tempo`, inside 60–180 BPM.
-    static func combPeak(_ ac: [Double], fps: Double, near tempo: Double) -> Int? {
+    static func combPeak(_ ac: [Double], fps: Double, near tempo: Double, multiples: [Int] = combMultiples) -> Int? {
         let centre = (tempo * 10).rounded()
         let lo = max(600, Int((centre * 0.98).rounded(.up))), hi = min(1800, Int((centre * 1.02).rounded(.down)))
         guard lo <= hi else { return nil }
         var peak = lo
-        for tenth in lo...hi where comb(ac, fps: fps, tenth: tenth) > comb(ac, fps: fps, tenth: peak) { peak = tenth }
+        for tenth in lo...hi
+        where comb(ac, fps: fps, tenth: tenth, multiples: multiples) > comb(ac, fps: fps, tenth: peak, multiples: multiples) {
+            peak = tenth
+        }
         return peak
     }
 
     /// #0012: the prior only chooses among the metre's octaves (×1, ½, 2); ties keep ×1.
-    static func octaveChoice(_ ac: [Double], fps: Double, metre: Int) -> Int {
+    static func octaveChoice(_ ac: [Double], fps: Double, metre: Int, multiples: [Int] = combMultiples) -> Int {
         var choice = metre, bestScore = -1.0
         for multiple in [1.0, 0.5, 2.0] {
-            guard let peak = combPeak(ac, fps: fps, near: Double(metre) / 10 * multiple) else { continue }
-            let score = comb(ac, fps: fps, tenth: peak) * prior(Double(peak) / 10)
+            guard let peak = combPeak(ac, fps: fps, near: Double(metre) / 10 * multiple, multiples: multiples) else { continue }
+            let score = comb(ac, fps: fps, tenth: peak, multiples: multiples) * prior(Double(peak) / 10)
             if score > bestScore { bestScore = score; choice = peak }
         }
         return choice

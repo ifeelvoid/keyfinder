@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # One source bundle for local testing and the distributable DMG.
-VERSION=2.1
+VERSION=3.0
 ARCHES=(x86_64 arm64)
 APP_NAME=KeyFinder
 for OPTION in "$@"; do

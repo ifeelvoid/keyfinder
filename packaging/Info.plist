@@ -5,11 +5,12 @@
 <key>CFBundleIdentifier</key><string>com.keyfinder.app</string>
 <key>CFBundleName</key><string>KeyFinder</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>2.1</string>
-<key>CFBundleShortVersionString</key><string>2.1</string>
+<key>CFBundleVersion</key><string>3.0</string>
+<key>CFBundleShortVersionString</key><string>3.0</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>12.0</string>
 <key>LSApplicationCategoryType</key><string>public.app-category.music</string>
+<key>NSHumanReadableCopyright</key><string>© 2026 IFEELVOID. MIT licensed.</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>NSMicrophoneUsageDescription</key><string>Analyze the key and tempo of your selected audio input.</string>

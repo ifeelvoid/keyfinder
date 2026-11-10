@@ -172,3 +172,24 @@ C1 versus comb: metre-correct +95/−21 (p < 0.0001), exact +52/−20 (p 0.0002)
   - The earlier #0012 parity results had distinct per-method outputs that matched Swift, so those binaries were not stale.
 - **Not mine.** `showsKeyStyleToggle = false`, which hides the plugin key-style toggle while both styles share the key model, appeared in `PluginEditor.h` between 2026-11-02 and 2026-11-04 from other work. It is left as found.
 - Nothing was committed, pushed or installed.
+
+## Release (2026-11-07/08, Alexander: "push commit install")
+
+- **Installed 2026-11-07.**
+  - `/Applications/KeyFinder.app`: 2.1, universal, binary identical to the tested build.
+  - VST3 and AU in `~/Library/Audio/Plug-Ins`: host smoke PASS, `auval` AU VALIDATION SUCCEEDED.
+  - Backups of the previous install are in `dist/installed-backup-2026-11-07/`. The install script's `previous-*` copies were moved there so DAWs see one plugin.
+- **Public repo.** `ifeelvoid/keyfinder` is public, so with Alexander's choice ("Code + scrubbed docs"):
+  - Private song names were replaced by song IDs, and private folders by placeholders.
+  - `build_truth.py` reads roots from `KF_TEMPO_ROOTS`; its output is byte-identical to the original.
+  - #0002 (Mixed In Key decompilation notes) is kept local via `.git/info/exclude`.
+  - Originals and the ID map are in `dist/private-originals-2026-11-07/`.
+- **Left out.** #0013's in-flight files (brief, `train.py`, `fmak_*.py`, its unstaged `ACCURACY.md`/`essentia_ref.py` edits) were left untouched and uncommitted.
+  - The index briefly held #0013's M2 Swift weights. It was corrected to the M export, which is byte-identical to `export_weights.py` on `model-M.json`.
+- **Tests on the exact staged tree.**
+  - KeyFinderRegression: 24 groups pass.
+  - All `tools/test-*.sh` exit 0.
+  - The app builds.
+  - The plugin regression passes.
+  - Plugin tempo and keys match on 54/54 songs.
+- **Commit and push.** Commit `18dd6be` was pushed to `origin/codex/mik-key-analysis`, a new branch. No PR was opened and `main` was not touched.

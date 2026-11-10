@@ -138,7 +138,7 @@ struct HelpView: View {
                         )
                         ResultExplanation(
                             title: "Confidence",
-                            description: "Detection accuracy: Green (>75%), Yellow (50-75%), Red (<50%)"
+                            description: "Algorithm score, not a measured success rate: Green (>75%), Yellow (50-75%), Red (<50%)"
                         )
                         ResultExplanation(
                             title: "Key Changes",

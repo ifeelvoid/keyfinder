@@ -101,6 +101,9 @@ std::vector<float> resample (const std::vector<float>& mono, double sourceRate, 
     }
 }
 
+// Frames near the reported end where a failed read means end of stream (a few MP3 packets).
+constexpr AVAudioFramePosition tailToleranceFrames = 4608;
+
 std::optional<std::vector<float>> readFile (const juce::File& file, const AnalysisCancellation& cancelled)
 {
     @autoreleasepool
@@ -127,7 +130,10 @@ std::optional<std::vector<float>> readFile (const juce::File& file, const Analys
             NSError* readError = nil;
             if (! [audio readIntoBuffer: input frameCount: std::min<AVAudioFrameCount> (requested, AVAudioFrameCount (remaining)) error: &readError])
             {
-                failed = true;
+                // Some MP3s report a length about one packet longer than their decodable audio; a failed
+                // final read (eofErr or no NSError) is the end of the stream, not a failure (matches the app).
+                const bool endOfFile = [readError.domain isEqualToString: NSOSStatusErrorDomain] && readError.code == eofErr;
+                failed = ! (endOfFile || audio.length - audio.framePosition <= tailToleranceFrames);
                 *finished = YES;
                 return nil;
             }
