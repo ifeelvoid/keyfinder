@@ -7,6 +7,14 @@ modified and never uploaded.
 **[Download KeyFinder 3.0](https://github.com/ifeelvoid/keyfinder/releases/latest)** ·
 macOS 12 or later · Intel and Apple Silicon
 
+![KeyFinder library: key, Camelot code, tempo and waveform for each track, with the Camelot wheel and mix suggestions for the selected track](docs/screenshots/app-library.png)
+
+<p align="center">
+  <img src="docs/screenshots/plugin-file.png" width="380" alt="KeyFinder plug-in FILE tab showing key, Camelot code, tempo and pitch energy">
+</p>
+
+<p align="center"><sub>The desktop app (top) and the VST3 / AU plug-in (bottom), shown with synthetic demo tracks.</sub></p>
+
 ## What's new in 3.0
 
 - **New key model.** KeyFinder now detects keys with its own small trained model
