@@ -48,7 +48,7 @@ struct CamelotWheelView: View {
     }
 
     private func point(_ center: CGPoint, _ radius: CGFloat, _ degrees: Double) -> CGPoint {
-        let radians = degrees * .pi / 180
+        let radians = CGFloat(degrees * .pi / 180)
         return CGPoint(x: center.x + radius * cos(radians), y: center.y + radius * sin(radians))
     }
 
