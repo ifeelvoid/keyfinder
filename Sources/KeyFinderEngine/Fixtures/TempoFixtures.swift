@@ -37,17 +37,26 @@ public enum TempoFixtures {
     }
 
     public static func run() async throws -> [String] {
-        let trap = [(0.0, 0), (1.5, 0), (2.75, 0), (2.0, 1)] + (0..<16).map { (Double($0) / 4, 2) }
-            + (0..<6).map { (3 + Double($0) / 6, 2) }
-        let four = (0..<4).map { (Double($0), 0) } + [(1.0, 1), (3.0, 1)] + (0..<4).map { (Double($0) + 0.5, 2) }
-        for (bpm, pattern) in [(81.0, trap), (120.0, four)] {
+        // Explicit types: older Swift compilers time out inferring these concatenations.
+        typealias Hit = (Double, Int)
+        let sixteenths: [Hit] = (0..<16).map { (Double($0) / 4, 2) }
+        let trapKicks: [Hit] = [(0.0, 0), (1.5, 0), (2.75, 0), (2.0, 1)]
+        let trapRoll: [Hit] = (0..<6).map { (3 + Double($0) / 6, 2) }
+        let trap: [Hit] = trapKicks + sixteenths + trapRoll
+        let fourKicks: [Hit] = (0..<4).map { (Double($0), 0) }
+        let fourSnares: [Hit] = [(1.0, 1), (3.0, 1)]
+        let fourHats: [Hit] = (0..<4).map { (Double($0) + 0.5, 2) }
+        let four: [Hit] = fourKicks + fourSnares + fourHats
+        let cases: [(Double, [Hit])] = [(81.0, trap), (120.0, four)]
+        for (bpm, pattern) in cases {
             let audio = loop(bpm: bpm, pattern: pattern)
             let tempo = try await BPMDetector().detectBPM(audioSamples: audio, sampleRate: 22050)
             try require(abs(tempo / bpm - 1) <= 0.02, "Comb must report the session tempo \(bpm), got \(tempo)")
         }
         // Syncopated kicks under 16th hats and sextuplet rolls: #0011's comb read these as 2/3.
-        let dense = [(0.0, 0), (0.75, 0), (1.5, 0), (2.0, 1), (3.25, 0)] + (0..<16).map { (Double($0) / 4, 2) }
-            + (0..<24).map { (Double($0) / 6, 2) }
+        let denseKicks: [Hit] = [(0.0, 0), (0.75, 0), (1.5, 0), (2.0, 1), (3.25, 0)]
+        let sextuplets: [Hit] = (0..<24).map { (Double($0) / 6, 2) }
+        let dense: [Hit] = denseKicks + sixteenths + sextuplets
         for bpm in [160.0, 174.0] {
             let fast = try await BPMDetector().detectBPM(audioSamples: loop(bpm: bpm, pattern: dense), sampleRate: 22050)
             try require([bpm, bpm / 2].contains { abs(fast / $0 - 1) <= 0.02 }, "Fast \(bpm) BPM trap must read as its tempo or half, got \(fast)")

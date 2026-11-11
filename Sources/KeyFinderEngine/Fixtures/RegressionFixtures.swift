@@ -107,7 +107,10 @@ public enum RegressionFixtures {
         results.append("Synthetic 120 BPM pulse train and grid boundaries")
         let chord: [Float] = (0..<Int(rate * 6)).map { sample in
             let time = Double(sample) / rate
-            return Float((sin(2 * .pi * 261.625565 * time) * 0.6 + sin(2 * .pi * 329.627557 * time) * 0.2 + sin(2 * .pi * 391.995436 * time) * 0.2) * 0.5)
+            let c: Double = sin(2 * Double.pi * 261.625565 * time) * 0.6
+            let e: Double = sin(2 * Double.pi * 329.627557 * time) * 0.2
+            let g: Double = sin(2 * Double.pi * 391.995436 * time) * 0.2
+            return Float((c + e + g) * 0.5)
         }
         let (key, confidence) = try await KeyDetector().detectKeyWithConfidence(audioSamples: chord, sampleRate: rate)
         try require(key == .cMajor, "C-major tonic fixture measured \(key.rawValue)")

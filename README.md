@@ -117,7 +117,6 @@ XCTest files on machines that only have the Command Line Tools.
 | `Sources/KeyFinder` | macOS app (SwiftUI) |
 | `Sources/KeyFinderEngine` | Analysis engine, regression runner, benchmarks |
 | `KeyFinderVST` | VST3 / AU plug-in (JUCE, C++ port of the engine) |
-| `keyfinder-windows` | Older Windows app (1.7, separate codebase, not part of 3.0) |
 | `tools` | Tests, benchmark and evaluation scripts |
 | `docs/briefs` | Design briefs and evidence ledgers for each change |
 
