@@ -21,8 +21,30 @@ public struct DJExportTrack {
 public enum DJExport {
     public static func csv(_ rows: [[String]]) -> String {
         rows.map { row in
-            row.map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }.joined(separator: ",")
+            row.map { "\"" + neutralized($0).replacingOccurrences(of: "\"", with: "\"\"") + "\"" }.joined(separator: ",")
         }.joined(separator: "\r\n") + "\r\n"
+    }
+
+    /// Spreadsheet apps execute cells that start with these characters; a leading apostrophe makes them text.
+    private static func neutralized(_ cell: String) -> String {
+        guard let first = cell.first, "=+-@\t\r".contains(first) else { return cell }
+        return "'" + cell
+    }
+
+    /// Escaped text for hand-built XML. Drops characters XML 1.0 forbids (tag metadata can contain them).
+    public static func xmlText(_ string: String) -> String {
+        let allowed = string.unicodeScalars.filter { scalar in
+            switch scalar.value {
+            case 0x9, 0xA, 0xD, 0x20...0xD7FF, 0xE000...0xFFFD, 0x10000...0x10FFFF: return true
+            default: return false
+            }
+        }
+        return String(String.UnicodeScalarView(allowed))
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&apos;")
     }
 
     private static func element(_ name: String, _ attributes: [String: String] = [:]) -> XMLElement {

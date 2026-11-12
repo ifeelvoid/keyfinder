@@ -63,6 +63,10 @@ public enum RegressionFixtures {
         try require(try nml.nodes(forXPath: "//LOCATION/@DIR").first?.stringValue == "/:tmp/:", "Traktor directory syntax")
         results.append("Traktor NML structure and cue time units (not host-app import)")
         try require(DJExport.csv([["a,b", "x\"y", "two\nlines"]]) == "\"a,b\",\"x\"\"y\",\"two\nlines\"\r\n", "CSV quoting")
+        // Spreadsheet apps run cells that start with these characters as formulas.
+        try require(DJExport.csv([["=1+1", "+x", "-x", "@x", "\tx", "plain", "/path/-a.wav"]])
+                    == "\"'=1+1\",\"'+x\",\"'-x\",\"'@x\",\"'\tx\",\"plain\",\"/path/-a.wav\"\r\n", "CSV formula cells are neutralized")
+        try require(DJExport.xmlText("a<b>&\"c'\u{0}\u{1}\u{B}\u{1F}\td\n\u{FFFE}") == "a&lt;b&gt;&amp;&quot;c&apos;\td\n", "XML text is escaped and stripped of characters XML 1.0 forbids")
         results.append("CSV preserves punctuation and newlines")
 
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("keyfinder-fixtures-\(UUID())")

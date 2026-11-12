@@ -887,8 +887,7 @@ class AudioAnalysisModel: ObservableObject {
         xml += "  </Songs>\n"
         xml += "</VDJ>\n"
 
-        try? xml.write(to: url, atomically: true, encoding: .utf8)
-        return url
+        return writeExport(xml, to: url)
     }
 
     // MARK: - iTunes-compatible XML Export
@@ -941,8 +940,7 @@ class AudioAnalysisModel: ObservableObject {
         xml += "</dict>\n"
         xml += "</plist>\n"
 
-        try? xml.write(to: url, atomically: true, encoding: .utf8)
-        return url
+        return writeExport(xml, to: url)
     }
 
     // Metadata edits live in the crate. Audio tag writes are not implemented.
@@ -959,11 +957,6 @@ class AudioAnalysisModel: ObservableObject {
     // MARK: - Helper Functions
 
     private func escapeXML(_ string: String) -> String {
-        return string
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-            .replacingOccurrences(of: "'", with: "&apos;")
+        DJExport.xmlText(string)
     }
 }
