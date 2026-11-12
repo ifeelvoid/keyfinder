@@ -1,4 +1,4 @@
-KeyFinder 3.0 — Apple Silicon development preview
+KeyFinder 3.0.1 — Apple Silicon development preview
 
 Apple Silicon only (M1 or newer). Not compatible with Intel Macs.
 Built with a macOS 12 deployment target; minimum-OS testing is still pending.

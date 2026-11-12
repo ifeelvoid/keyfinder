@@ -32,6 +32,10 @@ macOS 12 or later · Intel and Apple Silicon
   planner, and a persistent crate with manual key corrections.
 - **MP3 fix.** Some MP3s that previously failed to load now analyze correctly.
 
+**3.0.1** hardens the exports: CSV cells that a spreadsheet would run as formulas are
+neutralized, Virtual DJ and iTunes XML drop characters XML forbids, and a failed save
+is reported instead of looking successful.
+
 Measured results and their limits are in [ACCURACY.md](ACCURACY.md). KeyFinder makes
 no accuracy-parity claim against any commercial product.
 
@@ -57,7 +61,7 @@ no accuracy-parity claim against any commercial product.
 
 ## Install
 
-1. Download `KeyFinder-v3.0.dmg` from the
+1. Download `KeyFinder-v3.0.1.dmg` from the
    [releases page](https://github.com/ifeelvoid/keyfinder/releases/latest) and open it.
 2. Drag **KeyFinder.app** onto **Applications**.
 3. For the plug-in, copy the two bundles in the DMG's `Plug-Ins` folder into
@@ -91,7 +95,7 @@ Requires macOS 12+, Xcode with Swift 5.9+, CMake, and a
 ```sh
 bash build-app.sh                                        # dist/KeyFinder.app (universal)
 bash install-vst.sh --build-only --juce-dir /path/to/JUCE  # VST3 + AU
-bash make-dmg.sh                                         # dist/KeyFinder-v3.0.dmg
+bash make-dmg.sh                                         # dist/KeyFinder-v3.0.1.dmg
 ```
 
 Nothing is installed or published by these scripts unless you pass `--install`

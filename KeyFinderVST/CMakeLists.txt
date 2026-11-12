@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.22)
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Universal plugin binaries")
 set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Matches the desktop app floor")
 
-project(KeyFinderVST VERSION 3.0.0 LANGUAGES C CXX)
+project(KeyFinderVST VERSION 3.0.1 LANGUAGES C CXX)
 
 set(KEYFINDER_JUCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../JUCE" CACHE PATH "JUCE 8 checkout")
 if(NOT EXISTS "${KEYFINDER_JUCE_DIR}/CMakeLists.txt")
