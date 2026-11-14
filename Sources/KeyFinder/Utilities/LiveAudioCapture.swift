@@ -22,13 +22,20 @@ public class LiveAudioCapture: NSObject, ObservableObject {
     static let maxSavedSeconds = 60.0
     private static let deviceDefaultsKey = "liveInputDeviceUID"
 
-    private var audioEngine: AVAudioEngine?
+    private var input: InputDeviceCapture?
+    /// Serializes Core Audio start/stop so the UI never waits on a slow interface.
+    private let audioQueue = DispatchQueue(label: "KeyFinder.LiveInput", qos: .userInitiated)
+    /// Audio arrives on Core Audio's real-time thread; locking and copying happen here instead.
+    private let processingQueue = DispatchQueue(label: "KeyFinder.LiveProcessing", qos: .userInitiated)
+    @MainActor private var captureGeneration = 0
     private let analysisWindow = LiveAnalysisWindow()
     @MainActor private var analysisTask: Task<Void, Never>?
     private let recordingLock = NSLock()
     private var recording: [Float] = []
     private var recordingRate: Double = 0
     private var heardFrames = 0
+    /// The capture allowed to feed analysis; guarded by `recordingLock` because it is checked off the main thread.
+    private var activeInput: ObjectIdentifier?
 
     // MARK: - Devices
 
@@ -74,46 +81,79 @@ public class LiveAudioCapture: NSObject, ObservableObject {
         default:
             break
         }
-        let engine = AVAudioEngine()
-        let inputNode = engine.inputNode
-        if var deviceID = selectedDevice?.id, let unit = inputNode.audioUnit {
-            // Must happen before the input format is read.
-            AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
-                                 &deviceID, UInt32(MemoryLayout<AudioDeviceID>.size))
-        }
-        let format = inputNode.outputFormat(forBus: 0)
-        guard format.channelCount > 0, analysisWindow.begin(sampleRate: format.sampleRate) else {
-            statusMessage = "This input has no audio channels. Choose another input."
+        guard let device = selectedDevice ?? AudioInputDevice.defaultInput() else {
+            statusMessage = "No audio input was found. Connect an interface or microphone, then choose Refresh Inputs."
             return
         }
-        resetRecording(sampleRate: format.sampleRate)
-        inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
-            self?.processAudioBuffer(buffer)
+        captureGeneration += 1
+        let generation = captureGeneration
+        let capture = InputDeviceCapture(deviceID: device.id)
+        input = capture
+        setActive(capture)
+        isCapturing = true
+        statusMessage = "Starting \(device.name)…"
+        // Core Audio can block for seconds on some USB interfaces; never do that on the UI thread.
+        audioQueue.async { [weak self] in
+            do {
+                let rate = try capture.prepare()
+                // Stopped or replaced while the interface was still opening.
+                guard let self, self.isActive(capture) else { capture.stop(); return }
+                guard self.analysisWindow.begin(sampleRate: rate) else { throw InputDeviceCapture.Failure.noChannels }
+                self.resetRecording(sampleRate: rate)
+                try capture.start(eventQueue: .main,
+                                  onSamples: { [weak self] samples in
+                                      self?.processingQueue.async {
+                                          // Drop audio still queued from an input that was stopped or replaced.
+                                          guard let self, self.isActive(capture) else { return }
+                                          self.processAudio(samples, sampleRate: rate)
+                                      }
+                                  },
+                                  onEvent: { [weak self] event in
+                                      MainActor.assumeIsolated { self?.handle(event, from: device, generation: generation) }
+                                  })
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.captureGeneration == generation else { return }
+                    self.statusMessage = nil
+                    self.watchForSilentInput(generation: generation, device: device)
+                }
+            } catch {
+                capture.stop()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.captureGeneration == generation else { return }
+                    self.analysisWindow.stop()
+                    self.input = nil
+                    self.isCapturing = false
+                    self.statusMessage = "Could not start \(device.name): \(error.localizedDescription)"
+                }
+            }
         }
-        do {
-            try engine.start()
-            audioEngine = engine
-            isCapturing = true
-            statusMessage = nil
-            watchForSilentInput(engine)
-        } catch {
-            inputNode.removeTap(onBus: 0)
-            analysisWindow.stop()
-            statusMessage = "Could not start \(selectedDevice?.name ?? "the input"): \(error.localizedDescription)"
+    }
+
+    @MainActor
+    private func handle(_ event: InputDeviceCapture.Event, from device: AudioInputDevice, generation: Int) {
+        guard captureGeneration == generation, isCapturing else { return }
+        stopCapture()
+        switch event {
+        case .disconnected:
+            refreshDevices()
+            statusMessage = "\(device.name) was disconnected. Reconnect it, or choose another input."
+        case .formatChanged:
+            // The interface changed sample rate; reopen it at the new rate.
+            startCapture()
         }
     }
 
     /// macOS can start an input yet deliver nothing (for example when microphone access was
     /// refused for this build). Say so instead of showing "Listening" forever.
     @MainActor
-    private func watchForSilentInput(_ engine: AVAudioEngine) {
+    private func watchForSilentInput(generation: Int, device: AudioInputDevice) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            guard let self, self.isCapturing, self.audioEngine === engine else { return }
+            guard let self, self.isCapturing, self.captureGeneration == generation else { return }
             self.recordingLock.lock()
             let heard = self.heardFrames
             self.recordingLock.unlock()
             if heard == 0 {
-                self.statusMessage = "No audio is arriving from \(self.selectedDevice?.name ?? "this input"). "
+                self.statusMessage = "No audio is arriving from \(device.name). "
                     + "Check System Settings › Privacy & Security › Microphone, or choose another input."
             }
         }
@@ -121,13 +161,17 @@ public class LiveAudioCapture: NSObject, ObservableObject {
 
     @MainActor
     public func stopCapture() {
+        captureGeneration += 1
         analysisWindow.stop()
         analysisTask?.cancel()
         analysisTask = nil
-        audioEngine?.inputNode.removeTap(onBus: 0)
-        audioEngine?.stop()
-        audioEngine = nil
+        setActive(nil)
+        if let capture = input {
+            input = nil
+            audioQueue.async { capture.stop() }
+        }
         isCapturing = false
+        statusMessage = nil
         clearResult()
     }
 
@@ -151,6 +195,18 @@ public class LiveAudioCapture: NSObject, ObservableObject {
         pitchEnergy = Array(repeating: 0, count: 12)
         capturedSeconds = 0
         isHeld = false
+    }
+
+    private func setActive(_ capture: InputDeviceCapture?) {
+        recordingLock.lock()
+        activeInput = capture.map(ObjectIdentifier.init)
+        recordingLock.unlock()
+    }
+
+    private func isActive(_ capture: InputDeviceCapture) -> Bool {
+        recordingLock.lock()
+        defer { recordingLock.unlock() }
+        return activeInput == ObjectIdentifier(capture)
     }
 
     private func resetRecording(sampleRate: Double) {
@@ -223,16 +279,8 @@ public class LiveAudioCapture: NSObject, ObservableObject {
 
     // MARK: - Analysis
 
-    private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) {
-        guard let channelData = buffer.floatChannelData, buffer.format.channelCount > 0 else { return }
-        let frameLength = Int(buffer.frameLength)
-        let channelCount = Int(buffer.format.channelCount)
-        var samples = [Float](repeating: 0, count: frameLength)
-        for frame in 0..<frameLength {
-            for channel in 0..<channelCount { samples[frame] += channelData[channel][frame] }
-            samples[frame] /= Float(channelCount)
-        }
-
+    private func processAudio(_ samples: [Float], sampleRate: Double) {
+        let frameLength = samples.count
         recordingLock.lock()
         recording.append(contentsOf: samples)
         let keep = Int(recordingRate * Self.maxSavedSeconds)
@@ -245,7 +293,7 @@ public class LiveAudioCapture: NSObject, ObservableObject {
             if self?.statusMessage?.hasPrefix("No audio is arriving") == true { self?.statusMessage = nil }
         }
 
-        guard let work = analysisWindow.append(samples, sampleRate: buffer.format.sampleRate) else { return }
+        guard let work = analysisWindow.append(samples, sampleRate: sampleRate) else { return }
         Task { @MainActor [weak self] in
             guard let self = self, self.analysisWindow.isCurrent(work) else { return }
             self.analysisTask = Task { [weak self] in
