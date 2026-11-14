@@ -79,7 +79,7 @@ public enum DJExport {
     public static func rekordbox(_ tracks: [DJExportTrack]) -> String {
         let tracks = valid(tracks)
         let root = element("DJ_PLAYLISTS", ["Version": "1.0.0"])
-        root.addChild(element("PRODUCT", ["Name": "KeyFinder", "Version": "3.0.1", "Company": "IFEELVOID"]))
+        root.addChild(element("PRODUCT", ["Name": "KeyFinder", "Version": "3.0.2", "Company": "IFEELVOID"]))
         let collection = element("COLLECTION", ["Entries": String(tracks.count)])
         root.addChild(collection)
         for (index, track) in tracks.enumerated() {

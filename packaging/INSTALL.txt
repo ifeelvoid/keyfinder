@@ -1,4 +1,4 @@
-KeyFinder 3.0.1 — macOS 12 or later, Intel and Apple Silicon
+KeyFinder 3.0.2 — macOS 12 or later, Intel and Apple Silicon
 
 KeyFinder is an independent release without an Apple Developer ID, so it is not
 notarized and macOS asks you to confirm it the first time. You only do this once.
