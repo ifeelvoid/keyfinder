@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "keyfinder": {
+      "command": "./bin/keyfinder-mcp",
+      "args": [],
+      "cwd": ".",
+      "env_vars": ["KEYFINDER_MCP_ROOTS"]
+    }
+  }
+}

@@ -43,6 +43,9 @@ else
     cp "${BIN_DIRS[0]}/KeyFinder" "$APP/Contents/MacOS/KeyFinder"
 fi
 for ARCH in "${ARCHES[@]}"; do lipo "$APP/Contents/MacOS/KeyFinder" -verify_arch "$ARCH"; done
+# The MCP server for AI assistants ships inside the app; make-mcp.sh also builds the plugin ZIP.
+./make-mcp.sh
+cp .build/universal/keyfinder-mcp "$APP/Contents/MacOS/"
 cp AppIcon.icns "$APP/Contents/Resources/"
 # Preserve SwiftPM resources alongside the bundle, as expected by generated accessors.
 RESOURCE_BIN=${BIN_DIRS[${#BIN_DIRS[@]}-1]}

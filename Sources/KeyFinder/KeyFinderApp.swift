@@ -100,5 +100,13 @@ struct KeyFinderApp: App {
                 .keyboardShortcut("?", modifiers: .command)
             }
         }
+
+        // KeyFinder → Settings… (⌘,): folders AI assistants may read through keyfinder-mcp.
+        Settings {
+            TabView {
+                AIAssistantSettingsView()
+                    .tabItem { Label("AI Assistant", systemImage: "sparkles") }
+            }
+        }
     }
 }

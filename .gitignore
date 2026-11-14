@@ -30,3 +30,8 @@ Icon
 
 # Python bytecode
 __pycache__/
+
+# keyfinder-mcp build output (make-mcp.sh)
+plugin/keyfinder/bin/
+Sources/KeyFinderMCP/.build-*/
+build/KeyFinder-plugin.zip

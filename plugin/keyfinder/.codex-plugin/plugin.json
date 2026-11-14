@@ -1,0 +1,47 @@
+{
+  "name": "keyfinder",
+  "version": "3.0.2",
+  "description": "Key, BPM and harmonic-mixing assistant for DJs and producers. Analyzes audio on your Mac.",
+  "author": {
+    "name": "IFEELVOID",
+    "email": "alexander@ifeelvoid.net",
+    "url": "https://ifeelvoid.net"
+  },
+  "homepage": "https://ifeelvoid.net",
+  "repository": "https://github.com/ifeelvoid/keyfinder",
+  "license": "MIT",
+  "keywords": [
+    "music",
+    "dj",
+    "key detection",
+    "bpm",
+    "camelot",
+    "harmonic mixing",
+    "producer"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "requires_local_executor": true,
+  "interface": {
+    "displayName": "KeyFinder",
+    "shortDescription": "Key, BPM and harmonic DJ sets from your own music",
+    "longDescription": "KeyFinder detects the musical key (with Camelot notation), BPM, energy and key changes of audio files on your Mac, then helps you use them: find tracks that mix out of a track, build a harmonic DJ set that follows an energy shape, or work out how far to transpose and stretch a sample to fit your project. Analysis runs locally; audio never leaves your computer, and KeyFinder only reads folders you allow (your Music folder by default).",
+    "developerName": "IFEELVOID",
+    "category": "Productivity",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://ifeelvoid.net",
+    "privacyPolicyURL": "https://ifeelvoid.net/privacy",
+    "termsOfServiceURL": "https://ifeelvoid.net/terms",
+    "defaultPrompt": [
+      "Use KeyFinder to build a 60-minute set from my Music folder that peaks around minute 40.",
+      "Use KeyFinder to find what mixes out of this track.",
+      "Use KeyFinder to tell me how to make this loop fit my 8A, 124 BPM project."
+    ],
+    "brandColor": "#0A0A0A",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "screenshots": []
+  }
+}
