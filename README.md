@@ -7,6 +7,8 @@ modified and never uploaded.
 **[Download KeyFinder 3.0](https://github.com/ifeelvoid/keyfinder/releases/latest)** ·
 macOS 12 or later · Intel and Apple Silicon
 
+https://github.com/user-attachments/assets/392c76a8-d702-43f6-81ab-cc60a1e6103c
+
 ![KeyFinder library: key, Camelot code, tempo and waveform for each track, with the Camelot wheel and mix suggestions for the selected track](docs/screenshots/app-library.png)
 
 <p align="center">
