@@ -5,8 +5,8 @@
 <key>CFBundleIdentifier</key><string>com.keyfinder.app</string>
 <key>CFBundleName</key><string>KeyFinder</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>3.0.2</string>
-<key>CFBundleShortVersionString</key><string>3.0.2</string>
+<key>CFBundleVersion</key><string>3.1.0</string>
+<key>CFBundleShortVersionString</key><string>3.1.0</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>12.0</string>
 <key>LSApplicationCategoryType</key><string>public.app-category.music</string>

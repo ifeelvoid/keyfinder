@@ -6,7 +6,7 @@ import Foundation
 /// and several transitive packages, while KeyFinder supports macOS 12 and five tools over
 /// stdio need only initialize, tools/list, tools/call and ping.
 public struct MCPServer: Sendable {
-    public static let serverVersion = "3.0.2"
+    public static let serverVersion = "3.1.0"
     /// Newest first. The client's requested version is echoed back when supported.
     public static let supportedProtocolVersions = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 

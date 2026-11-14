@@ -40,6 +40,12 @@ is reported instead of looking successful.
 directly at that input's own format, starts and stops without blocking the window, and
 says so when an interface is disconnected.
 
+**3.1.0** lets AI assistants use KeyFinder as a DJ tool. A local MCP server ships inside
+the app, so ChatGPT desktop, Claude Desktop, Codex or Cursor can analyze tracks and folders,
+find harmonically compatible tracks, build a set and check whether a sample fits. Audio
+never leaves the Mac, assistants only see folders you allow in Settings → AI Assistant,
+and the server never changes or deletes files. Setup: [docs/AI-ASSISTANT.md](docs/AI-ASSISTANT.md).
+
 Measured results and their limits are in [ACCURACY.md](ACCURACY.md). KeyFinder makes
 no accuracy-parity claim against any commercial product.
 
@@ -65,7 +71,7 @@ no accuracy-parity claim against any commercial product.
 
 ## Install
 
-1. Download `KeyFinder-v3.0.2.dmg` from the
+1. Download `KeyFinder-v3.1.0.dmg` from the
    [releases page](https://github.com/ifeelvoid/keyfinder/releases/latest) and open it.
 2. Drag **KeyFinder.app** onto **Applications**.
 3. For the plug-in, copy the two bundles in the DMG's `Plug-Ins` folder into
@@ -99,7 +105,7 @@ Requires macOS 12+, Xcode with Swift 5.9+, CMake, and a
 ```sh
 bash build-app.sh                                        # dist/KeyFinder.app (universal)
 bash install-vst.sh --build-only --juce-dir /path/to/JUCE  # VST3 + AU
-bash make-dmg.sh                                         # dist/KeyFinder-v3.0.2.dmg
+bash make-dmg.sh                                         # dist/KeyFinder-v3.1.0.dmg
 ```
 
 Nothing is installed or published by these scripts unless you pass `--install`
