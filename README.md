@@ -48,6 +48,11 @@ find harmonically compatible tracks, build a set and check whether a sample fits
 never leaves the Mac, assistants only see folders you allow in Settings → AI Assistant,
 and the server never changes or deletes files. Setup: [docs/AI-ASSISTANT.md](docs/AI-ASSISTANT.md).
 
+**3.2.0** makes that one click: **KeyFinder → Connect AI Assistants…** lists Claude,
+ChatGPT and Codex, Claude Code, Cursor and VS Code with a Connect button for each. Select
+tracks in Finder and ask your assistant "what key is this?" to get key and BPM without
+typing a path.
+
 Measured results and their limits are in [ACCURACY.md](ACCURACY.md). KeyFinder makes
 no accuracy-parity claim against any commercial product.
 
@@ -73,7 +78,7 @@ no accuracy-parity claim against any commercial product.
 
 ## Install
 
-1. Download `KeyFinder-v3.1.0.dmg` from the
+1. Download `KeyFinder-v3.2.0.dmg` from the
    [releases page](https://github.com/ifeelvoid/keyfinder/releases/latest) and open it.
 2. Drag **KeyFinder.app** onto **Applications**.
 3. For the plug-in, copy the two bundles in the DMG's `Plug-Ins` folder into
@@ -107,7 +112,7 @@ Requires macOS 12+, Xcode with Swift 5.9+, CMake, and a
 ```sh
 bash build-app.sh                                        # dist/KeyFinder.app (universal)
 bash install-vst.sh --build-only --juce-dir /path/to/JUCE  # VST3 + AU
-bash make-dmg.sh                                         # dist/KeyFinder-v3.1.0.dmg
+bash make-dmg.sh                                         # dist/KeyFinder-v3.2.0.dmg
 ```
 
 Nothing is installed or published by these scripts unless you pass `--install`
