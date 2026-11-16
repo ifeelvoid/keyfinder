@@ -16,13 +16,19 @@ private struct FakeAnalyzer: TrackAnalyzing {
     }
 }
 
+/// A fixed Finder selection.
+private struct FakeSelection: FinderSelecting {
+    let paths: [String]
+    func selectedPaths() throws -> [String] { paths }
+}
+
 /// A temporary music root with a few empty "audio" files and one file outside the root.
 private struct Fixture {
     let root: URL
     let outside: URL
     let server: MCPServer
 
-    init() throws {
+    init(selection: (URL, URL) -> [String] = { _, _ in [] }) throws {
         let base = FileManager.default.temporaryDirectory.appendingPathComponent("kf-mcp-\(UUID().uuidString)")
         root = base.appendingPathComponent("Music")
         outside = base.appendingPathComponent("Private")
@@ -37,7 +43,8 @@ private struct Fixture {
             "a.wav": ("8A", 124, 0), "b.mp3": ("9A", 125, 1), "c.flac": ("8B", 124, 2), "d.wav": ("3A", 128, 3),
             "secret.wav": ("8A", 124, 1),
         ])
-        server = MCPServer(tools: ToolBox(guardrail: PathGuard(roots: [root]), analyzer: analyzer, parallelism: 2))
+        server = MCPServer(tools: ToolBox(guardrail: PathGuard(roots: [root]), analyzer: analyzer, parallelism: 2,
+                                          finderSelection: FakeSelection(paths: selection(root, outside))))
     }
 
     func call(_ method: String, _ params: JSONValue = [:], id: Int = 1) async throws -> JSONValue {
@@ -71,12 +78,12 @@ struct ProtocolTests {
         #expect(response["result"]?["protocolVersion"]?.stringValue == MCPServer.supportedProtocolVersions[0])
     }
 
-    @Test("tools/list returns the five read-only tools")
+    @Test("tools/list returns the six read-only tools")
     func toolsList() async throws {
         let response = try await Fixture().call("tools/list")
         guard case .array(let tools)? = response["result"]?["tools"] else { Issue.record("no tools"); return }
         #expect(tools.compactMap { $0["name"]?.stringValue } ==
-                ["analyze_track", "analyze_folder", "find_compatible", "build_set", "fit_sample"])
+                ["analyze_track", "analyze_finder_selection", "analyze_folder", "find_compatible", "build_set", "fit_sample"])
         #expect(tools.allSatisfy { $0["annotations"]?["readOnlyHint"] == true })
     }
 
@@ -302,5 +309,39 @@ struct ParallelAnalysisTests {
         let (analyzed, failed) = await box.analyzeMany(urls)
         #expect(failed.isEmpty)
         #expect(analyzed.map(\.path) == urls.map(\.path))
+    }
+}
+
+@Suite("Finder selection")
+struct FinderSelectionTests {
+    @Test("Selected files and folders are analyzed, even outside the allowed folders; non-audio is skipped")
+    func selection() async throws {
+        let fixture = try Fixture { root, outside in
+            [outside.appendingPathComponent("secret.wav").path, root.appendingPathComponent("sub").path + "/",
+             root.appendingPathComponent("notes.txt").path, root.appendingPathComponent("broken.wav").path]
+        }
+        let result = try await fixture.tool("analyze_finder_selection", [:])
+        #expect(result["isError"] == false)
+        guard case .array(let analyzed)? = result["structuredContent"]?["analyzed"],
+              case .array(let failed)? = result["structuredContent"]?["failed"],
+              case .array(let skipped)? = result["structuredContent"]?["skipped"] else { Issue.record("shape"); return }
+        #expect(analyzed.compactMap { $0["fileName"]?.stringValue } == ["secret.wav", "d.wav"])
+        #expect(failed.count == 1)
+        #expect(skipped.compactMap(\.stringValue).map { URL(fileURLWithPath: $0).lastPathComponent } == ["notes.txt"])
+    }
+
+    @Test("An empty or audio-free selection explains what to do")
+    func emptySelection() async throws {
+        let empty = try await Fixture().tool("analyze_finder_selection", [:])
+        #expect(empty["isError"] == true)
+        let textOnly = try await Fixture { root, _ in [root.appendingPathComponent("notes.txt").path] }
+            .tool("analyze_finder_selection", [:])
+        #expect(textOnly["isError"] == true)
+    }
+
+    @Test("macOS refusing Finder access becomes a how-to-fix message")
+    func notAuthorized() {
+        let error = AppleScriptFinderSelection.explain("execution error: Not authorized to send Apple events to Finder. (-1743)")
+        #expect(error.localizedDescription.contains("Privacy & Security"))
     }
 }

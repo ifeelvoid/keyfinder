@@ -23,7 +23,7 @@ public struct EngineAnalyzer: TrackAnalyzing {
     }
 }
 
-/// Implements the five tools. Every argument is validated here, at the boundary.
+/// Implements the tools. Every argument is validated here, at the boundary.
 public struct ToolBox: Sendable {
     public static let maxFolderFiles = 500
     static let defaultFolderFiles = 200
@@ -36,23 +36,28 @@ public struct ToolBox: Sendable {
     let guardrail: PathGuard
     let analyzer: TrackAnalyzing
     let parallelism: Int
+    let finderSelection: FinderSelecting
     /// When set, the allowed folders are re-read at each request, so changes made in the
     /// app's Settings apply without restarting the assistant.
     private let guardrailProvider: (@Sendable () -> PathGuard)?
 
     public init(guardrail: PathGuard, analyzer: TrackAnalyzing,
-                parallelism: Int = ToolBox.defaultParallelism) {
+                parallelism: Int = ToolBox.defaultParallelism,
+                finderSelection: FinderSelecting = AppleScriptFinderSelection()) {
         self.guardrail = guardrail
         self.analyzer = analyzer
         self.parallelism = parallelism
+        self.finderSelection = finderSelection
         self.guardrailProvider = nil
     }
 
     public init(guardrailProvider: @escaping @Sendable () -> PathGuard, analyzer: TrackAnalyzing,
-                parallelism: Int = ToolBox.defaultParallelism) {
+                parallelism: Int = ToolBox.defaultParallelism,
+                finderSelection: FinderSelecting = AppleScriptFinderSelection()) {
         self.guardrail = guardrailProvider()
         self.analyzer = analyzer
         self.parallelism = parallelism
+        self.finderSelection = finderSelection
         self.guardrailProvider = guardrailProvider
     }
 
@@ -63,7 +68,8 @@ public struct ToolBox: Sendable {
     /// A copy pinned to the folders allowed right now.
     private func current() -> ToolBox {
         guard let provider = guardrailProvider else { return self }
-        return ToolBox(guardrail: provider(), analyzer: analyzer, parallelism: parallelism)
+        return ToolBox(guardrail: provider(), analyzer: analyzer, parallelism: parallelism,
+                       finderSelection: finderSelection)
     }
 
     public var definitions: [JSONValue] {
@@ -79,6 +85,7 @@ public struct ToolBox: Sendable {
         case "find_compatible": return try await findCompatible(args)
         case "build_set": return try await buildSet(args)
         case "fit_sample": return try await fitSample(args)
+        case "analyze_finder_selection": return try await analyzeFinderSelection()
         default: throw ToolError.invalidArgument("Unknown tool: \(name)")
         }
     }

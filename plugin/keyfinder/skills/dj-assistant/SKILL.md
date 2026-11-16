@@ -18,7 +18,7 @@ KeyFinder reads audio on the user's Mac. It can only read folders the user allow
    working with, then reason from its results. Large folders take time; say so before
    analyzing more than ~100 files.
 3. **Pick the tool for the question.**
-   - "What key / BPM is this?" → `analyze_track`.
+   - "What key / BPM is this?" → `analyze_track` with a path, or `analyze_finder_selection` when no path is given (the user selects the file in Finder).
    - "What mixes out of this?" → `find_compatible` with `track_path`.
    - "Build me a set / an hour of …" → `build_set` with `energy_shape` (`build`, `flat`,
      `peak`) and `target_minutes` when they give a length.

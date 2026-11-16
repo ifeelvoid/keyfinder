@@ -12,6 +12,9 @@ enum ToolDefinitions {
                  "Detect the musical key (with Camelot notation), BPM, confidence, energy level, duration and key changes of one audio file. Results are cached until the file changes." + rootsNote,
                  properties: ["path": string("Absolute path to an audio file (mp3, wav, m4a, flac, aiff, aac, caf).")],
                  required: ["path"]),
+            tool("analyze_finder_selection", "Analyze Finder selection",
+                 "Detect key (with Camelot), BPM, energy and key changes for the audio files the user has selected in Finder on this Mac (selected folders: their audio files). Use when the user says \"this track\", \"the file I selected\" or \"what key is this?\" without giving a path, or when they dropped a file into the chat (a dropped file is uploaded, so this tool cannot see it: ask them to select it in Finder instead). Works for files outside the allowed folders because the user picked them. The first use may show a macOS prompt asking to let the assistant control Finder.",
+                 properties: [:], required: []),
             tool("analyze_folder", "Analyze folder",
                  "Analyze every audio file in a folder. Use before asking for mixes or sets so the user sees what is in the folder. Files that cannot be read are listed under `failed` with a reason." + rootsNote,
                  properties: [

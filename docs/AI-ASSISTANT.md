@@ -18,7 +18,22 @@ The server is at:
 /Applications/KeyFinder.app/Contents/MacOS/keyfinder-mcp
 ```
 
-## ChatGPT desktop app
+## Connect in one click
+
+Open KeyFinder and choose **KeyFinder → Connect AI Assistants…**. Every assistant on your Mac
+is listed: Claude, ChatGPT and Codex, Claude Code, Cursor and VS Code. Click **Connect** next
+to one, then quit and reopen that assistant. KeyFinder adds only its own entry to the
+assistant's settings and saves a backup of the original file next to it
+(`….keyfinder-backup`). **Update** appears if the assistant points at another copy of
+KeyFinder; **Disconnect** removes the entry again.
+
+ChatGPT on the web cannot reach programs on your Mac; use the desktop app.
+
+## Connect by hand
+
+Only needed if the one-click button says the settings file needs a manual edit.
+
+### ChatGPT desktop app
 
 Open **Settings → MCP servers → Add server**. Name it `keyfinder`, choose **STDIO**, enter
 the path above as the command, save, then click **Restart**. The same setting can go in
@@ -31,7 +46,7 @@ command = "/Applications/KeyFinder.app/Contents/MacOS/keyfinder-mcp"
 
 ChatGPT on the web cannot reach programs on your Mac; use the desktop app.
 
-## Claude Desktop
+### Claude Desktop
 
 Open **Settings → Developer → Edit Config** and add KeyFinder to
 `claude_desktop_config.json`, then restart Claude:
@@ -59,10 +74,23 @@ configuration shown above with the correct path filled in.
 Advanced: `KEYFINDER_MCP_ROOTS` (colon-separated) adds folders on top of the list, for
 assistants whose configuration can set environment variables.
 
+## "What key is this?" with Finder
+
+Select one or more tracks (or a folder) in Finder, then ask the assistant "what key and BPM
+is this?". KeyFinder reads Finder's selection and analyzes it, even outside your allowed
+folders, because you picked the files yourself. The first time, macOS asks whether the
+assistant may control Finder: click **OK**.
+
+Dropping an audio file into a chat window does not work the same way: Claude and ChatGPT
+upload dropped files to the cloud, where KeyFinder cannot see them. In Claude Code, Codex,
+Cursor and VS Code, dropping a file pastes its path, which works if the file is in an allowed
+folder.
+
 ## What the assistant can do
 
 | Tool | What it does |
 |---|---|
+| `analyze_finder_selection` | Key, Camelot, BPM and energy for whatever you have selected in Finder |
 | `analyze_track` | Key, Camelot, BPM, confidence, energy, key changes for one file |
 | `analyze_folder` | The same for every audio file in a folder (up to 500 per request) |
 | `find_compatible` | Tracks that mix out of a track: same key, ±1, relative major/minor, within a BPM tolerance |
