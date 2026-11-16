@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -15,6 +16,16 @@ struct KeyFinderApp: App {
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appSettings) {
+                Button("Connect AI Assistants…") {
+                    // The selector was renamed in macOS 13; the Settings scene answers to one of them.
+                    let modern = Selector(("showSettingsWindow:"))
+                    if !NSApp.sendAction(modern, to: nil, from: nil) {
+                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                    }
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            }
 
             // File menu commands
             CommandGroup(after: .newItem) {
