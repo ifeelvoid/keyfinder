@@ -232,3 +232,28 @@ Strict chain a → b → c → d. Phase e can run in parallel with b–d once it
   stdio on the release binary → A Minor 8A, 123 BPM. Not checked inside Claude/ChatGPT
   windows (the installed 3.1.0 server lacks the tool until the next release), including the
   first-use Automation prompt as shown by those apps. Guide and plugin skill updated.
+- 2026-11-16 — **Shipped 3.2.0** (Alexander: "Yes, ship 3.2"). Commits 62f4d47 (one-click
+  connect), cf6e33a (Finder selection), ce47583 (release) on main; tag/release v3.2.0 with DMG
+  and VST3/AU zips. Installed on this Mac (3.1.0 backed up to
+  `dist/installed-backup-2026-11-16/`). Installed server lists six tools; with a regenerated
+  synthetic A-minor WAV selected in Finder it returned A Minor 8A (BPM 82.7, the known 2/3
+  reading on this synthetic kick pattern). `claude mcp list`: keyfinder ✔ Connected; Codex:
+  enabled. Not verified inside an assistant: Claude Code CLI login expired, and the Codex
+  CLI needs the FreeLLMAPI key from the login environment (not used).
+- 2026-11-16 — **Hermes (Séraphine) on the MacBook Air connected** (Alexander: "install it and
+  the mcp, have seraphine message me on discord"). Over SSH to `air`: KeyFinder 3.2.0 app
+  installed from the release DMG (checksum matched); VST3/AU 3.2.0 installed;
+  `hermes mcp add keyfinder --command /Applications/KeyFinder.app/Contents/MacOS/keyfinder-mcp`
+  (config backed up to `config.yaml.bak-20261116-pre-keyfinder`; 4 lines added, 6/6 tools).
+  `hermes mcp test keyfinder` lists all 6 tools. Gateway restart refused because 2 live jobs
+  were running (Pokémon Center watchdog); not forced, so already-open sessions load it on the
+  next session or `/reload-mcp`. `hermes send -t discord` posted the confirmation to the home
+  channel "Seraphine HQ / #general" (message 1571980390585868473).
+- 2026-11-16 — **Release defect:** the published 3.2.0 DMG contains 3.1.0-labelled plug-ins
+  (`make-dmg.sh` ran before `install-vst.sh --build-only`, so it packed the previous build).
+  App and the separate plug-in zips are correct. `make-dmg.sh` now refuses plug-ins whose
+  version differs from the app. Rebuilt DMG locally (sha256 ca098ed8…); the GitHub asset is
+  not replaced yet.
+- 2026-11-16 — Alexander: "Yes, replace it." Corrected DMG uploaded over the v3.2.0 asset
+  (`gh release upload --clobber`); GitHub digest sha256:ca098ed8… matches. Release notes'
+  checksum updated with a one-line note on the replacement.

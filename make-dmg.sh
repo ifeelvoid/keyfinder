@@ -44,6 +44,12 @@ if ! $PREVIEW && [ -d "$PLUGINS/AU/KeyFinderVST.component" ] && [ -d "$PLUGINS/V
     ditto "$PLUGINS/AU/KeyFinderVST.component" "$STAGING/contents/Plug-Ins/AU/KeyFinderVST.component"
     ditto "$PLUGINS/VST3/KeyFinderVST.vst3" "$STAGING/contents/Plug-Ins/VST3/KeyFinderVST.vst3"
     for BUNDLE in "$STAGING"/contents/Plug-Ins/*/KeyFinderVST.*; do
+        # A stale plug-in build from the previous release once shipped in a new DMG.
+        PLUGIN_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$BUNDLE/Contents/Info.plist")
+        if [ "$PLUGIN_VERSION" != "$VERSION" ]; then
+            echo "Plug-in $BUNDLE is $PLUGIN_VERSION but the app is $VERSION; build the plug-ins first (install-vst.sh --build-only)." >&2
+            exit 1
+        fi
         for ARCH in "${ARCHES[@]}"; do lipo "$BUNDLE/Contents/MacOS/KeyFinderVST" -verify_arch "$ARCH"; done
         if [ -n "${SIGNING_IDENTITY:-}" ]; then
             codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$BUNDLE"
